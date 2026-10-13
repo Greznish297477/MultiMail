@@ -41,12 +41,6 @@ enum class BarStyle(val title: String) {
     BAR("Полоса")
 }
 
-enum class LoadingStyle(val title: String) {
-    CIRCLE("Круг"),
-    LINE("Полоса"),
-    DOTS("Точки")
-}
-
 data class Appearance(
     val mode: ThemeMode = ThemeMode.SYSTEM,
     val accent: Accent = Accent.DYNAMIC,
@@ -57,7 +51,6 @@ data class Appearance(
     val roundCards: Boolean = true,
     val showLabels: Boolean = false,
     val fabLeft: Boolean = false,
-    val loadingStyle: LoadingStyle = LoadingStyle.CIRCLE,
     val showAvatars: Boolean = true,
     val showSnippets: Boolean = true
 )
@@ -79,7 +72,6 @@ object AppearanceStore {
             roundCards = p.getBoolean("round", true),
             showLabels = p.getBoolean("labels", false),
             fabLeft = p.getBoolean("fabLeft", false),
-            loadingStyle = enumOr(p.getString("loadingStyle", null), LoadingStyle.CIRCLE),
             showAvatars = p.getBoolean("showAvatars", true),
             showSnippets = p.getBoolean("showSnippets", true)
         )
@@ -99,7 +91,7 @@ object AppearanceStore {
             .remove("liquidGlass")
             .putBoolean("labels", appearance.showLabels)
             .putBoolean("fabLeft", appearance.fabLeft)
-            .putString("loadingStyle", appearance.loadingStyle.name)
+            .remove("loadingStyle")
             .putBoolean("showAvatars", appearance.showAvatars)
             .putBoolean("showSnippets", appearance.showSnippets)
             .apply()

@@ -32,7 +32,7 @@ class NotificationReplyReceiver : BroadcastReceiver() {
                 val account = AccountRepository(context.applicationContext).snapshot()
                     .firstOrNull { it.id == accountId }
                     ?.let(tokens::hydrate)
-                if (account != null) MailSender.send(account, recipient, "Re:", text)
+                if (account != null) MailSender.send(context.applicationContext, account, recipient, "Re:", text)
             } finally {
                 NotificationManagerCompat.from(context).cancel(notificationId)
                 pending.finish()

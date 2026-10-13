@@ -1,5 +1,7 @@
 package com.example.multiaccountmail.mail
 
+import android.content.Context
+import android.net.Uri
 import com.example.multiaccountmail.data.Account
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -75,5 +77,3 @@ object MailSender {
         }
     }
 }
-import android.content.Context
-import android.net.Uri

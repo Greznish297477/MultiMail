@@ -5,6 +5,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AllInbox
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -111,6 +114,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.example.multiaccountmail.data.Account
 import com.example.multiaccountmail.data.AccountRepository
 import com.example.multiaccountmail.data.Provider
@@ -127,7 +131,6 @@ import com.example.multiaccountmail.ui.components.SenderAvatar
 import com.example.multiaccountmail.ui.theme.Accent
 import com.example.multiaccountmail.ui.theme.Appearance
 import com.example.multiaccountmail.ui.theme.AppearanceStore
-import com.example.multiaccountmail.ui.theme.LoadingStyle
 import com.example.multiaccountmail.ui.theme.ThemeMode
 import com.example.multiaccountmail.ui.theme.UiDensity
 import com.example.multiaccountmail.ui.theme.appearance
@@ -141,11 +144,7 @@ private data class DrawerFolder(val folder: MailFolder, val icon: ImageVector)
 
 @Composable
 private fun AppLoadingIndicator() {
-    when (appearance().loadingStyle) {
-        LoadingStyle.CIRCLE -> CircularProgressIndicator()
-        LoadingStyle.LINE -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth(0.6f))
-        LoadingStyle.DOTS -> Text("●  ●  ●", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineSmall)
-    }
+    CircularProgressIndicator()
 }
 
 @Composable
@@ -399,9 +398,9 @@ fun MainScreen(
                             Icon(Icons.Default.Edit, contentDescription = "Написать")
                         }
                     }
-                    selectedTab == 1 -> {
-                        FloatingActionButton(onClick = onAddAccount) {
-                            Icon(Icons.Default.Add, contentDescription = "Добавить")
+                    selectedTab == 1 && currentAccount != null -> {
+                        FloatingActionButton(onClick = { composing = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Написать письмо")
                         }
                     }
                 }
@@ -479,7 +478,6 @@ fun MainScreen(
                         }
                     )
                     2 -> SettingsTab(
-                        onSyncNow = { refreshToken++ },
                         onManageAccounts = {
                             showAccountManager = true
                         }
@@ -780,22 +778,40 @@ private fun MailDetail(mail: MailMessage) {
             Text(mail.accountEmail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         }
         Spacer(Modifier.height(16.dp))
-        Text(
-            (mail.body.ifBlank { mail.snippet }).ifBlank { "Текст письма сервер не отдал." },
-            style = MaterialTheme.typography.bodyLarge
-        )
+        val messageBody = (mail.body.ifBlank { mail.snippet }).ifBlank { "Текст письма сервер не отдал." }
+        if (messageBody.contains("<html", ignoreCase = true) || messageBody.contains("<body", ignoreCase = true)) {
+            AndroidView(
+                modifier = Modifier.fillMaxWidth().height(480.dp),
+                factory = { context -> android.webkit.WebView(context).apply {
+                    settings.javaScriptEnabled = false
+                    settings.loadsImagesAutomatically = true
+                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                } },
+                update = { webView ->
+                    webView.loadDataWithBaseURL(null, messageBody, "text/html", "UTF-8", null)
+                }
+            )
+        } else {
+            Text(messageBody, style = MaterialTheme.typography.bodyLarge)
+        }
         Spacer(Modifier.height(8.dp))
     }
 }
 
 @Composable
 private fun ComposeMail(account: Account, onDone: () -> Unit) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var to by remember { mutableStateOf("") }
     var subject by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     var sending by remember { mutableStateOf(false) }
+    var attachments by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        attachments = (attachments + uris).distinct()
+        uris.forEach { uri -> runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } }
+    }
 
     Column(
         Modifier
@@ -808,12 +824,23 @@ private fun ComposeMail(account: Account, onDone: () -> Unit) {
         OutlinedTextField(to, { to = it }, label = { Text("Кому") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(subject, { subject = it }, label = { Text("Тема") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(body, { body = it }, label = { Text("Текст") }, modifier = Modifier.fillMaxWidth().height(220.dp))
+        TextButton(onClick = { attachmentPicker.launch(arrayOf("*/*")) }) {
+            Icon(Icons.Default.AttachFile, contentDescription = null)
+            Spacer(Modifier.width(6.dp))
+            Text("Прикрепить файлы")
+        }
+        attachments.forEach { uri ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(uri.lastPathSegment ?: "Вложение", modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                TextButton(onClick = { attachments = attachments - uri }) { Text("Убрать") }
+            }
+        }
         Button(
             onClick = {
                 sending = true
                 status = null
                 scope.launch {
-                    val error = MailSender.send(account, to, subject, body)
+                    val error = MailSender.send(context, account, to, subject, body, attachments)
                     sending = false
                     if (error == null) onDone() else status = error
                 }
@@ -960,7 +987,7 @@ private fun EditAccount(
 }
 
 @Composable
-private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
+private fun SettingsTab(onManageAccounts: () -> Unit) {
     val context = LocalContext.current
     val look = appearance()
     val scope = rememberCoroutineScope()
@@ -1054,18 +1081,6 @@ private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
                 }
             }
         }
-        item { Text("Загрузка", fontWeight = FontWeight.SemiBold) }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                LoadingStyle.entries.forEach { style ->
-                    FilterChip(
-                        selected = look.loadingStyle == style,
-                        onClick = { save(look.copy(loadingStyle = style)) },
-                        label = { Text(style.title) }
-                    )
-                }
-            }
-        }
         item {
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1129,14 +1144,6 @@ private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
                         Text("«Написать» и «Добавить» у левого края", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(checked = look.fabLeft, onCheckedChange = { save(look.copy(fabLeft = it)) })
-                }
-            }
-        }
-        item {
-            Card(onClick = onSyncNow, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Обновить почту", fontWeight = FontWeight.Medium)
-                    Text("Загрузить письма с сервера ещё раз", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
