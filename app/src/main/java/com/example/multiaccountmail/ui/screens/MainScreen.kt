@@ -116,6 +116,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.multiaccountmail.data.Account
@@ -156,6 +157,7 @@ private fun GlassPillNavigation(
     selectedTab: Int,
     showLabels: Boolean,
     motionStyle: com.example.multiaccountmail.ui.theme.MotionStyle,
+    onDragProgress: (Float) -> Unit,
     onSelect: (Int) -> Unit
 ) {
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
@@ -170,6 +172,7 @@ private fun GlassPillNavigation(
                 detectHorizontalDragGestures(
                     onHorizontalDrag = { _, amount ->
                         dragOffsetPx += amount
+                        onDragProgress(dragOffsetPx / size.width.coerceAtLeast(1).toFloat())
                     },
                     onDragEnd = {
                         // Плашку можно провести через любое число вкладок. После отпускания
@@ -180,9 +183,11 @@ private fun GlassPillNavigation(
                             .coerceIn(0, tabs.lastIndex)
                         if (target != selectedTab) onSelect(target)
                         dragOffsetPx = 0f
+                        onDragProgress(0f)
                     },
                     onDragCancel = {
                         dragOffsetPx = 0f
+                        onDragProgress(0f)
                     }
                 )
             }
@@ -271,6 +276,7 @@ fun MainScreen(
     var openedMail by remember { mutableStateOf<MailMessage?>(null) }
     var composing by remember { mutableStateOf(false) }
     var showAccountManager by remember { mutableStateOf(false) }
+    var tabDragProgress by remember { mutableFloatStateOf(0f) }
     var refreshToken by remember { mutableIntStateOf(0) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val look = appearance()
@@ -386,10 +392,12 @@ fun MainScreen(
                     selectedTab = selectedTab,
                     showLabels = look.showLabels,
                     motionStyle = look.motionStyle,
+                    onDragProgress = { tabDragProgress = it },
                     onSelect = { index ->
                         openedMail = null
                         composing = false
                         showAccountManager = false
+                        tabDragProgress = 0f
                         selectedTab = index
                     }
                 )
@@ -415,7 +423,13 @@ fun MainScreen(
                 }
             }
         ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    // Пока тянут нижнюю плашку, экран движется синхронно с ней.
+                    .offset { IntOffset((tabDragProgress * 260f).roundToInt(), 0) }
+            ) {
                 if (showAccountManager) {
                     AccountsTab(
                         accounts = accounts,
