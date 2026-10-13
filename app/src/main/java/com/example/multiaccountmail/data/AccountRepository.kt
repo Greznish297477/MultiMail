@@ -214,7 +214,8 @@ class AccountRepository(context: Context) {
             buildList {
                 for (i in 0 until arr.length()) {
                     val o = arr.getJSONObject(i)
-                    add(
+                    // Одна повреждённая запись не должна скрывать остальные ящики.
+                    runCatching {
                         Account(
                             id = o.getString("id"),
                             email = o.getString("email"),
@@ -228,7 +229,7 @@ class AccountRepository(context: Context) {
                             smtpHost = o.optString("smtpHost").ifBlank { null },
                             smtpPort = o.optInt("smtpPort", 465)
                         )
-                    )
+                    }.getOrNull()?.let(::add)
                 }
             }
         } catch (_: Exception) {

@@ -198,8 +198,8 @@ fun AddAccountScreen(
 
             ProviderPicker(manualProvider) { picked ->
                 manualProvider = picked
-                if (manualHost.isBlank() || manualHost in knownHosts) {
-                    manualHost = picked.defaultHost()
+                if (manualHost.isBlank() || manualHost in knownHosts || manualHost in knownPopHosts) {
+                    manualHost = picked.defaultHost(manualProtocol)
                 }
             }
 
@@ -215,8 +215,14 @@ fun AddAccountScreen(
                 onValueChange = {
                     manualEmail = it
                     manualProvider = CorporateMail.providerFor(it.substringAfter("@", "").lowercase())
-                    val suggested = CorporateMail.hosts(it, manualProvider, null).firstOrNull().orEmpty()
-                    if (manualHost.isBlank() || manualHost in knownHosts) manualHost = suggested
+                    val suggested = if (manualProtocol == MailProtocol.IMAP) {
+                        CorporateMail.hosts(it, manualProvider, null).firstOrNull().orEmpty()
+                    } else {
+                        manualProvider.defaultHost(MailProtocol.POP3).ifBlank {
+                            it.substringAfter("@", "").takeIf(String::isNotBlank)?.let { domain -> "pop.$domain" }.orEmpty()
+                        }
+                    }
+                    if (manualHost.isBlank() || manualHost in knownHosts || manualHost in knownPopHosts) manualHost = suggested
                 },
                 label = { Text("Email") },
                 singleLine = true,
@@ -254,8 +260,9 @@ fun AddAccountScreen(
                         return@Button
                     }
                     scope.launch {
-                        isLoading = true
-                        statusMessage = if (password.isBlank()) "Добавляю ящик без проверки пароля..." else "Проверяю $host..."
+                        try {
+                            isLoading = true
+                            statusMessage = if (password.isBlank()) "Добавляю ящик без проверки пароля..." else "Проверяю $host..."
                         val probe = com.example.multiaccountmail.data.Account(
                             id = "probe",
                             email = email,
@@ -288,8 +295,12 @@ fun AddAccountScreen(
                             smtpHost = CorporateMail.smtp(email, manualProvider, host)
                         )
                         if (password.isNotBlank()) tokenStorage.saveTokens(saved.id, null, appPassword = password)
-                        isLoading = false
-                        onBack()
+                            isLoading = false
+                            onBack()
+                        } catch (e: Exception) {
+                            isLoading = false
+                            statusMessage = e.localizedMessage ?: "Не удалось добавить ящик"
+                        }
                     }
                 },
                 enabled = !isLoading,
@@ -297,7 +308,7 @@ fun AddAccountScreen(
             ) { Text(if (manualPassword.isBlank()) "Добавить без пароля" else "Проверить и добавить") }
 
             statusMessage?.let {
-                Text(it, color = MaterialTheme.colorScheme.primary)
+                Text(it, color = if (it.contains("ошиб", true) || it.contains("не удалось", true)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                 if (it.contains("код 8")) googleRetry = true
             }
             Spacer(Modifier.height(24.dp))

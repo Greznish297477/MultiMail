@@ -1,6 +1,7 @@
 package com.example.multiaccountmail.mail
 
 import android.util.Log
+import android.text.Html
 import com.example.multiaccountmail.data.Account
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -189,13 +190,14 @@ object ImapFetcher {
                 ?: "Неизвестно"
             val fromEmail = from?.address.orEmpty()
             val stamp = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
+            val body = messageText(msg)
             MailMessage(
                 id = "${account?.id ?: host}-$number",
                 fromName = fromName,
                 fromEmail = fromEmail,
                 subject = msg.subject?.ifBlank { null } ?: "(без темы)",
-                snippet = messageText(msg).replace(Regex("\\s+"), " ").take(160),
-                body = messageText(msg),
+                snippet = previewText(body),
+                body = body,
                 date = msg.sentDate?.let { dateFmt.format(it) }.orEmpty(),
                 timestamp = stamp,
                 isUnread = unread,
@@ -214,20 +216,28 @@ object ImapFetcher {
 
     /** Берёт HTML или текст письма, сохраняя стили/фон HTML для экрана чтения. */
     private fun messageText(message: Message): String = runCatching {
-        when (val content = message.content) {
-            is String -> content
-            is MimeMultipart -> (0 until content.count).asSequence()
-                .map { content.getBodyPart(it) }
-                .mapNotNull { part ->
-                    when {
-                        part.isMimeType("text/html") || part.isMimeType("text/plain") -> part.content as? String
-                        else -> null
-                    }
-                }
-                .firstOrNull().orEmpty()
-            else -> ""
-        }
+        messageParts(message).firstOrNull { it.first }?.second
+            ?: messageParts(message).firstOrNull()?.second.orEmpty()
     }.getOrDefault("")
+
+    private fun messageParts(part: javax.mail.Part): List<Pair<Boolean, String>> = runCatching {
+        when {
+            part.isMimeType("text/html") -> listOf(true to (part.content as? String).orEmpty())
+            part.isMimeType("text/plain") -> listOf(false to (part.content as? String).orEmpty())
+            part.content is MimeMultipart -> {
+                val multipart = part.content as MimeMultipart
+                (0 until multipart.count).flatMap { messageParts(multipart.getBodyPart(it)) }
+            }
+            else -> emptyList()
+        }
+    }.getOrDefault(emptyList())
+
+    private fun previewText(value: String): String {
+        val plain = if (value.contains("<", ignoreCase = false)) {
+            Html.fromHtml(value, Html.FROM_HTML_MODE_LEGACY).toString()
+        } else value
+        return plain.replace(Regex("\\s+"), " ").trim().take(160)
+    }
 
     private fun hostsFor(account: Account, host: String): List<String> =
         CorporateMail.hosts(account.email, account.provider, host)
