@@ -1,0 +1,75 @@
+package com.example.multiaccountmail
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
+import com.example.multiaccountmail.data.AccountRepository
+import com.example.multiaccountmail.data.TokenStorage
+import com.example.multiaccountmail.ui.screens.AddAccountScreen
+import com.example.multiaccountmail.ui.screens.MainScreen
+import com.example.multiaccountmail.ui.theme.MultiAccountMailTheme
+
+class MainActivity : ComponentActivity() {
+
+    private lateinit var repository: AccountRepository
+    private lateinit var tokenStorage: TokenStorage
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        repository = AccountRepository(applicationContext)
+        tokenStorage = TokenStorage(applicationContext)
+        requestNotificationPermissionIfNeeded()
+
+        enableEdgeToEdge()
+        setContent {
+            MultiAccountMailTheme {
+                var showAddAccount by androidx.compose.runtime.remember { mutableStateOf(false) }
+                if (showAddAccount) {
+                    AddAccountScreen(
+                        repository = repository,
+                        tokenStorage = tokenStorage,
+                        onBack = {
+                            showAddAccount = false
+                        }
+                    )
+                } else {
+                    MainScreen(
+                        repository = repository,
+                        tokenStorage = tokenStorage,
+                        onAddAccount = { showAddAccount = true }
+                    )
+                }
+            }
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+}
