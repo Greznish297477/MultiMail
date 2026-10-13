@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.MultiAccountMail" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Системная стартовая тема: светлая только в светлой теме Android. -->
+    <style name="Theme.MultiAccountMail" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FDFCFF</item>
+        <item name="android:navigationBarColor">#FDFCFF</item>
+        <item name="android:statusBarColor">#FDFCFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
 </resources>

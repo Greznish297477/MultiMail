@@ -76,11 +76,13 @@ fun AddAccountScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         isLoading = false
-        if (result.resultCode != Activity.RESULT_OK) {
+        // Некоторые версии Google Play Services возвращают RESULT_CANCELED,
+        // хотя полезный результат уже лежит в intent. Всегда разбираем intent.
+        val signIn = GoogleAuthHelper.handleSignInResult(result.data)
+        if (signIn.account == null && result.resultCode != Activity.RESULT_OK && result.data == null) {
             statusMessage = "Вход Google отменён"
             return@rememberLauncherForActivityResult
         }
-        val signIn = GoogleAuthHelper.handleSignInResult(result.data)
         val account = signIn.account
         val email = account?.email
         if (account == null || email == null) {
@@ -133,7 +135,7 @@ fun AddAccountScreen(
                 onClick = {
                     isLoading = true
                     statusMessage = null
-                    GoogleAuthHelper.chooseAccount(context) { intent -> googleSignInLauncher.launch(intent) }
+                    googleSignInLauncher.launch(GoogleAuthHelper.getSignInIntent(context))
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(if (look.liquidGlass) 24.dp else 16.dp),
