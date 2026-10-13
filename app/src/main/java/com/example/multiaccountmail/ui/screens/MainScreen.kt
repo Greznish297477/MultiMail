@@ -240,6 +240,7 @@ fun MainScreen(
     allowEmptyAccounts: Boolean,
     onContinueWithoutMail: () -> Unit
 ) {
+    val context = LocalContext.current
     val accounts by repository.accounts.collectAsState()
     val currentId by repository.currentAccountId.collectAsState()
     val currentAccount = accounts.find { it.id == currentId }
@@ -252,8 +253,15 @@ fun MainScreen(
         return
     }
 
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var selectedFolder by remember { mutableStateOf(MailFolder.INBOX) }
+    val navigationPrefs = remember {
+        context.applicationContext.getSharedPreferences("navigation_state", android.content.Context.MODE_PRIVATE)
+    }
+    var selectedTab by remember {
+        mutableIntStateOf(navigationPrefs.getInt("selected_tab", 0).coerceIn(0, 2))
+    }
+    var selectedFolder by remember {
+        mutableStateOf(MailFolder.fromTitle(navigationPrefs.getString("selected_folder", MailFolder.INBOX.title).orEmpty()))
+    }
     var openedMail by remember { mutableStateOf<MailMessage?>(null) }
     var composing by remember { mutableStateOf(false) }
     var showAccountManager by remember { mutableStateOf(false) }
@@ -262,9 +270,16 @@ fun MainScreen(
     val look = appearance()
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(selectedTab, selectedFolder) {
+        navigationPrefs.edit()
+            .putInt("selected_tab", selectedTab)
+            .putString("selected_folder", selectedFolder.title)
+            .apply()
+    }
+
     val tabs = listOf(
         BottomTab("Почта", Icons.Filled.Email, Icons.Outlined.Email),
-        BottomTab("Все", Icons.Filled.AllInbox, Icons.Outlined.AccountCircle),
+        BottomTab("Все", Icons.Filled.AllInbox, Icons.Filled.AllInbox),
         BottomTab("Ещё", Icons.Filled.Settings, Icons.Outlined.Settings)
     )
 
@@ -302,6 +317,7 @@ fun MainScreen(
                     onClick = {
                         selectedFolder = MailFolder.UNIFIED
                         selectedTab = 1
+                        showAccountManager = false
                         scope.launch { drawerState.close() }
                     },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
@@ -327,6 +343,7 @@ fun MainScreen(
                         selected = acc.id == currentId,
                         onClick = {
                             repository.setCurrentAccount(acc.id)
+                            showAccountManager = false
                             scope.launch { drawerState.close() }
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
@@ -347,6 +364,7 @@ fun MainScreen(
                         onClick = {
                             selectedFolder = item.folder
                             selectedTab = 0
+                            showAccountManager = false
                             scope.launch { drawerState.close() }
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
@@ -365,6 +383,7 @@ fun MainScreen(
                     onSelect = { index ->
                         openedMail = null
                         composing = false
+                        showAccountManager = false
                         selectedTab = index
                     }
                 )
