@@ -471,12 +471,17 @@ private fun LoginRequiredScreen(onAddAccount: () -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
             Icon(Icons.Default.Email, null, Modifier.size(72.dp), tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(24.dp))
-            Text("Добро пожаловать", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Добро пожаловать",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
             Spacer(Modifier.height(8.dp))
             Text(
                 "Добавьте почту: Google, Яндекс, Mail.ru\nили любой ящик по паролю приложения",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f)
             )
             Spacer(Modifier.height(32.dp))
             FloatingActionButton(onClick = onAddAccount, modifier = Modifier.fillMaxWidth(0.8f)) {

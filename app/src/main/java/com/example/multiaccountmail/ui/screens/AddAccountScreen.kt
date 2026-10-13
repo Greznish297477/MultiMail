@@ -71,6 +71,12 @@ fun AddAccountScreen(
     var manualHost by remember { mutableStateOf("") }
     var manualProvider by remember { mutableStateOf(Provider.OTHER) }
     var googleRetry by remember { mutableStateOf(false) }
+    var showGoogleBrowser by remember { mutableStateOf(false) }
+
+    if (showGoogleBrowser) {
+        InAppGoogleBrowser(onClose = { showGoogleBrowser = false })
+        return
+    }
 
     fun saveSecrets(accountId: String, access: String?, refresh: String? = null, idToken: String? = null, password: String? = null) {
         tokenStorage.saveTokens(accountId, access, idToken, refresh, password)
@@ -175,6 +181,10 @@ fun AddAccountScreen(
                 Column(Modifier.padding(20.dp)) {
                     Text("Gmail через IMAP", style = MaterialTheme.typography.titleMedium)
                     Text("Для Huawei и microG: вход по паролю приложения Google, без сервисов Google Play")
+                    Button(
+                        onClick = { showGoogleBrowser = true },
+                        modifier = Modifier.padding(top = 12.dp)
+                    ) { Text("Войти в Google и создать пароль") }
                 }
             }
 
