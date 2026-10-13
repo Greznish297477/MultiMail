@@ -163,10 +163,6 @@ private fun GlassPillNavigation(
             .padding(horizontal = 16.dp, vertical = 10.dp)
             .height(if (showLabels) 68.dp else 58.dp)
             .clip(RoundedCornerShape(50))
-            .background(
-                if (liquidGlass) MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
-                else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.82f)
-            )
             .pointerInput(selectedTab) {
                 var dragDistance = 0f
                 detectHorizontalDragGestures(
@@ -206,7 +202,7 @@ private fun GlassPillNavigation(
                 .width(segmentWidth - 8.dp)
                 .height(if (showLabels) 60.dp else 50.dp)
                 .clip(RoundedCornerShape(50))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = if (liquidGlass) 0.58f else 0.22f))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = if (liquidGlass) 0.72f else 0.30f))
         )
         Row(Modifier.fillMaxSize()) {
             tabs.forEachIndexed { index, tab ->
@@ -903,6 +899,15 @@ private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
     val scope = rememberCoroutineScope()
     var release by remember { mutableStateOf<UpdateRepository.Release?>(null) }
     var updateStatus by remember { mutableStateOf<String?>(null) }
+    fun versionNumber(value: String): List<Int> = value.removePrefix("v").split('.')
+        .map { it.toIntOrNull() ?: 0 }
+    fun isNewer(remote: String): Boolean {
+        val latest = versionNumber(remote)
+        val current = versionNumber(BuildConfig.VERSION_NAME)
+        val length = maxOf(latest.size, current.size)
+        return (0 until length).firstOrNull { (latest.getOrElse(it) { 0 }) != (current.getOrElse(it) { 0 }) }
+            ?.let { latest.getOrElse(it) { 0 } > current.getOrElse(it) { 0 } } ?: false
+    }
     fun save(next: Appearance) = AppearanceStore.update(context, next)
 
     fun openAppSettings() {
@@ -1113,7 +1118,7 @@ private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
                             UpdateRepository.latest().fold(
                                 onSuccess = { latest ->
                                     release = latest
-                                    updateStatus = if (latest.tag.removePrefix("v") == BuildConfig.VERSION_NAME) {
+                                    updateStatus = if (!isNewer(latest.tag)) {
                                         "Установлена последняя версия."
                                     } else "Доступна версия ${latest.tag}."
                                 },
@@ -1131,16 +1136,18 @@ private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
                     Text("Версия ${BuildConfig.VERSION_NAME} · проверить новую версию на GitHub", style = MaterialTheme.typography.bodySmall)
                     updateStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp)) }
                     release?.let { latest ->
-                        Text(latest.notes, style = MaterialTheme.typography.bodySmall, maxLines = 5, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-                        TextButton(onClick = {
-                            if (UpdateInstaller.download(context, latest)) {
-                                updateStatus = "Обновление скачивается. После загрузки Android попросит подтвердить установку."
-                            } else if (latest.apkUrl.isBlank()) {
-                                updateStatus = "В последнем релизе нет APK."
-                            } else {
-                                updateStatus = "Разреши установку из MultiMail в системных настройках, затем нажми ещё раз."
-                            }
-                        }) { Text("Скачать и установить") }
+                        if (isNewer(latest.tag)) {
+                            Text(latest.notes, style = MaterialTheme.typography.bodySmall, maxLines = 5, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+                            TextButton(onClick = {
+                                if (UpdateInstaller.download(context, latest)) {
+                                    updateStatus = "Обновление скачивается. После загрузки Android попросит подтвердить установку."
+                                } else if (latest.apkUrl.isBlank()) {
+                                    updateStatus = "В последнем релизе нет APK."
+                                } else {
+                                    updateStatus = "Разреши установку из MultiMail в системных настройках, затем нажми ещё раз."
+                                }
+                            }) { Text("Скачать и установить") }
+                        }
                     }
                 }
             }
