@@ -12,6 +12,7 @@ import android.provider.Settings
 object UpdateInstaller {
     private const val PREFS = "app_update"
     private const val KEY_ID = "download_id"
+    private const val KEY_PENDING = "install_pending"
 
     fun download(context: Context, release: UpdateRepository.Release): Boolean {
         if (release.apkUrl.isBlank()) return false
@@ -29,21 +30,43 @@ object UpdateInstaller {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val id = manager.enqueue(request)
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(KEY_ID, id).apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_ID, id)
+            .putBoolean(KEY_PENDING, true)
+            .apply()
         return true
     }
 
     fun installCompletedDownload(context: Context, id: Long) {
-        val expected = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_ID, -1)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val expected = prefs.getLong(KEY_ID, -1)
         if (id != expected) return
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val status = manager.query(DownloadManager.Query().setFilterById(id)).use { cursor ->
+            if (!cursor.moveToFirst()) return
+            cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+        }
+        // Не пытаемся открыть частично скачанный или ошибочный APK.
+        if (status != DownloadManager.STATUS_SUCCESSFUL) {
+            prefs.edit().remove(KEY_PENDING).apply()
+            return
+        }
         val uri = manager.getUriForDownloadedFile(id) ?: return
         // Receiver вызывается DownloadManager автоматически: пользователю не нужно
         // искать завершённую загрузку в уведомлениях.
         context.startActivity(Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         })
+        prefs.edit().remove(KEY_PENDING).apply()
+    }
+
+    /** Повторяет открытие системной установки, если загрузка завершилась пока приложение было закрыто. */
+    fun resumePendingInstall(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(KEY_PENDING, false)) return
+        val id = prefs.getLong(KEY_ID, -1)
+        if (id > 0) installCompletedDownload(context, id)
     }
 }
 
