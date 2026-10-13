@@ -9,40 +9,26 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.Scope
 import com.google.api.services.gmail.GmailScopes
-import com.google.api.services.drive.DriveScopes
 
 /**
  * Помощник для Google Sign-In.
  *
- * Android Client ID: 730720800458-bh94728mt4hct9frhuigicj2ru8u3blu.apps.googleusercontent.com
- * Web Client ID:     730720800458-o89om3n1r9cgb1adk983b4u9gke4ugd1.apps.googleusercontent.com
+ * Для Gmail достаточно Android OAuth Client в Google Cloud Console,
+ * привязанного к package name и SHA-1 подписи приложения.
  */
 object GoogleAuthHelper {
 
-    // Android Client ID (привязан к package name + SHA-1)
-    const val ANDROID_CLIENT_ID = "730720800458-bh94728mt4hct9frhuigicj2ru8u3blu.apps.googleusercontent.com"
-
-    // Web Client ID — используется для requestIdToken и requestServerAuthCode
-    const val WEB_CLIENT_ID = "730720800458-o89om3n1r9cgb1adk983b4u9gke4ugd1.apps.googleusercontent.com"
-
-    // Скоупы: Gmail + Drive + Google Chat
+    // Только разрешения, которые использует почтовый клиент.
     private val SCOPES = listOf(
         Scope(GmailScopes.GMAIL_READONLY),
         Scope(GmailScopes.GMAIL_SEND),
-        Scope(GmailScopes.GMAIL_MODIFY),
-        Scope(DriveScopes.DRIVE_READONLY),
-        Scope(DriveScopes.DRIVE_FILE),
-        // Google Chat
-        Scope("https://www.googleapis.com/auth/chat.messages.readonly"),
-        Scope("https://www.googleapis.com/auth/chat.spaces.readonly")
+        Scope(GmailScopes.GMAIL_MODIFY)
     )
 
     fun getSignInClient(context: Context): GoogleSignInClient {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestProfile()
-            .requestIdToken(WEB_CLIENT_ID)          // обязательно Web Client ID
-            .requestServerAuthCode(WEB_CLIENT_ID)   // для offline access (refresh token)
             .apply {
                 SCOPES.forEach { requestScopes(it) }
             }
@@ -59,13 +45,22 @@ object GoogleAuthHelper {
      * Обработка результата Google Sign-In.
      * Возвращает аккаунт или null при ошибке.
      */
-    fun handleSignInResult(data: Intent?): GoogleSignInAccount? {
+    data class SignInResult(val account: GoogleSignInAccount?, val error: String? = null)
+
+    fun handleSignInResult(data: Intent?): SignInResult {
         return try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-            task.getResult(ApiException::class.java)
+            SignInResult(task.getResult(ApiException::class.java))
         } catch (e: ApiException) {
             e.printStackTrace()
-            null
+            val message = when (e.statusCode) {
+                7 -> "Нет подключения к Google. Проверь интернет."
+                10 -> "Google отклонил вход (код 10). Добавь SHA-1 текущей подписи и Android OAuth Client в Google Cloud Console."
+                12500 -> "Google Sign-In не настроен для этого APK. Проверь package name и SHA-1 в Google Cloud Console."
+                12501 -> "Вход Google отменён."
+                else -> "Ошибка входа Google: ${e.statusCode}. ${e.localizedMessage.orEmpty()}"
+            }
+            SignInResult(null, message)
         }
     }
 
@@ -76,6 +71,13 @@ object GoogleAuthHelper {
     fun signOut(context: Context, onComplete: () -> Unit = {}) {
         getSignInClient(context).signOut().addOnCompleteListener {
             onComplete()
+        }
+    }
+
+    fun chooseAccount(context: Context, onReady: (Intent) -> Unit) {
+        // Сбрасываем прошлый выбор, чтобы при добавлении ящика всегда появился выбор аккаунта.
+        getSignInClient(context).signOut().addOnCompleteListener {
+            onReady(getSignInIntent(context))
         }
     }
 }

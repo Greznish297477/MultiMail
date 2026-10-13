@@ -80,21 +80,21 @@ fun AddAccountScreen(
             statusMessage = "Вход Google отменён"
             return@rememberLauncherForActivityResult
         }
-        val account = GoogleAuthHelper.handleSignInResult(result.data)
+        val signIn = GoogleAuthHelper.handleSignInResult(result.data)
+        val account = signIn.account
         val email = account?.email
         if (account == null || email == null) {
-            statusMessage = "Google не вернул аккаунт. Проверь SHA-1 и Client ID в Cloud Console."
+            statusMessage = signIn.error ?: "Google не вернул аккаунт. Проверь SHA-1 и Android OAuth Client в Cloud Console."
             return@rememberLauncherForActivityResult
         }
         val saved = repository.addAccount(
             email = email,
             displayName = account.displayName ?: email.substringBefore("@"),
             provider = Provider.GOOGLE,
-            idToken = account.idToken,
             avatarUrl = account.photoUrl?.toString(),
-            accessToken = account.serverAuthCode
+            accessToken = null
         )
-        saveSecrets(saved.id, account.serverAuthCode, idToken = account.idToken)
+        saveSecrets(saved.id, null)
         statusMessage = "Добавлен Google: $email"
         onBack()
     }
@@ -133,7 +133,7 @@ fun AddAccountScreen(
                 onClick = {
                     isLoading = true
                     statusMessage = null
-                    googleSignInLauncher.launch(GoogleAuthHelper.getSignInIntent(context))
+                    GoogleAuthHelper.chooseAccount(context) { intent -> googleSignInLauncher.launch(intent) }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(if (look.liquidGlass) 24.dp else 16.dp),
