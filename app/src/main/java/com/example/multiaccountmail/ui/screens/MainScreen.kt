@@ -10,6 +10,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -92,7 +94,8 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.Composable
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -194,7 +197,11 @@ private fun GlassPillNavigation(
         }
         val indicatorOffset by animateDpAsState(
             targetValue = segmentWidth * selectedTab,
-            animationSpec = tween(durationMillis = 260),
+            // После отпускания пальца плашка мягко «прилипает» к выбранной вкладке.
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            ),
             label = "pill-tab-indicator"
         )
         Box(
@@ -438,8 +445,24 @@ fun MainScreen(
                         targetState = selectedTab,
                         transitionSpec = {
                             val forward = targetState > initialState
-                            (slideInHorizontally { if (forward) it else -it } + fadeIn()) togetherWith
-                                (slideOutHorizontally { if (forward) -it / 3 else it / 3 } + fadeOut())
+                            // Содержимое едет в направлении перетаскивания, а не
+                            // мгновенно заменяется. Лёгкий масштаб создаёт глубину.
+                            (slideInHorizontally(
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            ) { if (forward) it else -it } +
+                                fadeIn(initialAlpha = 0.35f) +
+                                scaleIn(initialScale = 0.96f)) togetherWith
+                                (slideOutHorizontally(
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                ) { if (forward) -it / 3 else it / 3 } +
+                                    fadeOut(targetAlpha = 0.15f) +
+                                    scaleOut(targetScale = 1.03f))
                         },
                         label = "bottom-tab-content"
                     ) { tab ->
