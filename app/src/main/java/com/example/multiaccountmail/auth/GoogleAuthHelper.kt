@@ -55,6 +55,7 @@ object GoogleAuthHelper {
             e.printStackTrace()
             val message = when (e.statusCode) {
                 7 -> "Нет подключения к Google. Проверь интернет."
+                8 -> "Сбой Google Play Services (код 8). Нажми «Повторить вход». Если не поможет — обнови Сервисы Google Play и перезапусти приложение."
                 10 -> "Google отклонил вход (код 10). Добавь SHA-1 текущей подписи и Android OAuth Client в Google Cloud Console."
                 12500 -> "Google Sign-In не настроен для этого APK. Проверь package name и SHA-1 в Google Cloud Console."
                 12501 -> "Вход Google отменён."
@@ -77,6 +78,13 @@ object GoogleAuthHelper {
     fun chooseAccount(context: Context, onReady: (Intent) -> Unit) {
         // Сбрасываем прошлый выбор, чтобы при добавлении ящика всегда появился выбор аккаунта.
         getSignInClient(context).signOut().addOnCompleteListener {
+            onReady(getSignInIntent(context))
+        }
+    }
+
+    /** Сбрасывает только авторизацию MultiMail и заново открывает выбор Google-аккаунта. */
+    fun retrySignIn(context: Context, onReady: (Intent) -> Unit) {
+        getSignInClient(context).revokeAccess().addOnCompleteListener {
             onReady(getSignInIntent(context))
         }
     }

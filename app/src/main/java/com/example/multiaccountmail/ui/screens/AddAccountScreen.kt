@@ -4,6 +4,9 @@ import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +29,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +70,7 @@ fun AddAccountScreen(
     var manualPassword by remember { mutableStateOf("") }
     var manualHost by remember { mutableStateOf("") }
     var manualProvider by remember { mutableStateOf(Provider.OTHER) }
+    var googleRetry by remember { mutableStateOf(false) }
 
     fun saveSecrets(accountId: String, access: String?, refresh: String? = null, idToken: String? = null, password: String? = null) {
         tokenStorage.saveTokens(accountId, access, idToken, refresh, password)
@@ -101,23 +106,7 @@ fun AddAccountScreen(
         onBack()
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text("Добавить аккаунт") },
-                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                    }
-                }
-            )
-        }
-    ) { padding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -126,6 +115,15 @@ fun AddAccountScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Добавить почту", style = MaterialTheme.typography.titleLarge)
+                    Text("Подключите Google или IMAP-ящик", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             if (isLoading) {
                 CircularProgressIndicator()
             }
@@ -135,6 +133,7 @@ fun AddAccountScreen(
                 onClick = {
                     isLoading = true
                     statusMessage = null
+                    googleRetry = false
                     googleSignInLauncher.launch(GoogleAuthHelper.getSignInIntent(context))
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -147,6 +146,16 @@ fun AddAccountScreen(
                 Column(Modifier.padding(20.dp)) {
                     Text("Google", style = MaterialTheme.typography.titleLarge)
                     Text("Вход в Gmail через аккаунт устройства")
+                    if (googleRetry) {
+                        Button(
+                            onClick = {
+                                isLoading = true
+                                statusMessage = null
+                                GoogleAuthHelper.retrySignIn(context) { intent -> googleSignInLauncher.launch(intent) }
+                            },
+                            modifier = Modifier.padding(top = 12.dp)
+                        ) { Text("Повторить вход") }
+                    }
                 }
             }
 
@@ -247,6 +256,7 @@ fun AddAccountScreen(
 
             statusMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.primary)
+                if (it.contains("код 8")) googleRetry = true
             }
             Spacer(Modifier.height(24.dp))
         }
