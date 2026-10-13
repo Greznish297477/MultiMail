@@ -23,9 +23,23 @@ android {
         manifestPlaceholders["appAuthRedirectScheme"] = "com.example.multiaccountmail"
     }
 
+    signingConfigs {
+        create("release") {
+            val store = System.getenv("RELEASE_STORE_FILE")
+            if (!store.isNullOrBlank()) {
+                storeFile = file(store)
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (!System.getenv("RELEASE_STORE_FILE").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
