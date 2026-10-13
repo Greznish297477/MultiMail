@@ -401,6 +401,7 @@ fun MainScreen(
                             repository.setCurrentAccount(it)
                             showAccountManager = false
                         },
+                        onBack = { showAccountManager = false },
                         onRemove = {
                             tokenStorage.clearTokens(it)
                             repository.removeAccount(it)
@@ -824,6 +825,7 @@ private fun AccountsTab(
     currentId: String?,
     tokenStorage: TokenStorage,
     onSelect: (String) -> Unit,
+    onBack: () -> Unit,
     onRemove: (String) -> Unit,
     onReorder: (Int, Int) -> Unit,
     onSave: (String, String, String, Provider, String?, String?, String?) -> Unit
@@ -840,7 +842,12 @@ private fun AccountsTab(
     val sorted = accounts.sortedBy { it.order }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
-            Text("Аккаунты", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                }
+                Text("Управление ящиками", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            }
             Text(
                 "Список сохраняется на устройстве. Токены лежат в зашифрованном хранилище.",
                 style = MaterialTheme.typography.bodySmall,

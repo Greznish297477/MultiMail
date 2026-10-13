@@ -270,13 +270,13 @@ fun AddAccountScreen(
                             smtpHost = CorporateMail.smtp(email, manualProvider, host)
                         )
                         if (password.isNotBlank()) {
-                            val result = if (manualProtocol == MailProtocol.IMAP) {
-                                ImapFetcher.fetch(probe, MailFolder.INBOX, max = 1)
+                            val error = if (manualProtocol == MailProtocol.IMAP) {
+                                ImapFetcher.verify(probe)
                             } else {
-                                PopFetcher.fetch(probe, MailFolder.INBOX, max = 1)
+                                PopFetcher.verify(probe)
                             }
-                            if (result.error != null && result.messages.isEmpty()) {
-                                statusMessage = result.error
+                            if (error != null) {
+                                statusMessage = error
                                 isLoading = false
                                 return@launch
                             }

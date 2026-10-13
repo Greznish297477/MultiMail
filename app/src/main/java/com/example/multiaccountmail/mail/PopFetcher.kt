@@ -14,6 +14,33 @@ import javax.mail.internet.InternetAddress
 
 /** POP3S предназначен только для чтения входящих: папки и серверные действия POP3 не поддерживает. */
 object PopFetcher {
+    /** Быстрая проверка POP3S без чтения списка писем. */
+    suspend fun verify(account: Account): String? = withContext(Dispatchers.IO) {
+        val password = account.appPassword ?: return@withContext "Укажите пароль приложения"
+        val host = account.imapHost?.takeIf { it.isNotBlank() }
+            ?: "pop.${account.email.substringAfter('@')}"
+        var store: Store? = null
+        try {
+            val port = account.imapPort.takeIf { it > 0 } ?: 995
+            val properties = Properties().apply {
+                put("mail.store.protocol", "pop3s")
+                put("mail.pop3s.host", host)
+                put("mail.pop3s.port", port.toString())
+                put("mail.pop3s.ssl.enable", "true")
+                put("mail.pop3s.ssl.trust", "*")
+                put("mail.pop3s.connectiontimeout", "10000")
+                put("mail.pop3s.timeout", "15000")
+            }
+            store = Session.getInstance(properties).getStore("pop3s")
+            store.connect(host, port, account.email, password)
+            null
+        } catch (e: Exception) {
+            "${e.message ?: "Не удалось подключиться к POP3"}. Проверь пароль приложения и сервер."
+        } finally {
+            runCatching { store?.close() }
+        }
+    }
+
     suspend fun fetch(account: Account, folder: MailFolder, max: Int = Int.MAX_VALUE): FetchResult =
         withContext(Dispatchers.IO) {
             if (folder !in listOf(MailFolder.INBOX, MailFolder.UNIFIED, MailFolder.UNREAD)) {

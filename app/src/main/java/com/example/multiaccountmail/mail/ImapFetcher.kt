@@ -52,6 +52,25 @@ object ImapFetcher {
         return last
     }
 
+    /** Быстрая проверка реквизитов при добавлении ящика: без открытия папки и загрузки писем. */
+    suspend fun verify(account: Account): String? = withContext(Dispatchers.IO) {
+        val password = account.appPassword ?: return@withContext "Укажите пароль приложения"
+        val host = account.imapHost?.takeIf { it.isNotBlank() } ?: account.defaultImapHost()
+            ?: return@withContext "Не задан IMAP-сервер"
+        var store: Store? = null
+        try {
+            val port = account.imapPort.takeIf { it > 0 } ?: 993
+            store = Session.getInstance(imapProperties(host, port, oauth = false)).getStore("imaps")
+            val login = if (host.contains("yandex")) account.email.substringBefore("@") else account.email
+            store.connect(host, port, login, password)
+            null
+        } catch (e: Exception) {
+            "${e.message ?: "Не удалось подключиться к IMAP"}. Проверь пароль приложения и сервер."
+        } finally {
+            runCatching { store?.close() }
+        }
+    }
+
     suspend fun fetchYandex(accessToken: String, email: String, max: Int = 25): List<MailMessage> {
         return fetchImap(
             host = "imap.yandex.ru",
@@ -203,8 +222,8 @@ object ImapFetcher {
         put("mail.imaps.ssl.trust", "*")
         put("mail.imaps.starttls.enable", "true")
         put("mail.imaps.auth", "true")
-        put("mail.imaps.connectiontimeout", "20000")
-        put("mail.imaps.timeout", "30000")
+        put("mail.imaps.connectiontimeout", "10000")
+        put("mail.imaps.timeout", "15000")
         put("mail.imaps.partialfetch", "false")
         if (oauth) {
             put("mail.imaps.auth.mechanisms", "XOAUTH2")
