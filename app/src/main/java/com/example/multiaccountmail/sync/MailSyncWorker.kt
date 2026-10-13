@@ -44,7 +44,9 @@ class MailSyncWorker(
                 val newcomers = result.messages.filter { it.isUnread && it.id !in known }
                 if (newcomers.isNotEmpty()) {
                     fresh += newcomers
-                    prefs.edit().putStringSet(key(account.id), (known + result.messages.map { it.id }).takeLastSet(80)).apply()
+                    // Не удаляем старые идентификаторы: непрочитанное старое письмо
+                    // не должно снова становиться «новым» через несколько проверок.
+                    prefs.edit().putStringSet(key(account.id), known + result.messages.map { it.id }).apply()
                 } else if (result.messages.isNotEmpty() && known.isEmpty()) {
                     // Первый успешный опрос только запоминает уже лежащие письма, без спама.
                     prefs.edit().putStringSet(key(account.id), result.messages.map { it.id }.toSet()).apply()
@@ -52,12 +54,7 @@ class MailSyncWorker(
             }
 
             if (fresh.isNotEmpty()) {
-                val preview = fresh.take(3).joinToString(" · ") { "${it.fromName}: ${it.subject}" }
-                NotificationHelper.showUnifiedInboxNotification(
-                    applicationContext,
-                    count = fresh.size,
-                    preview = preview
-                )
+                fresh.forEach { NotificationHelper.showMailNotification(applicationContext, it) }
             }
             Result.success()
         } catch (e: Exception) {
@@ -67,9 +64,6 @@ class MailSyncWorker(
     }
 
     private fun key(accountId: String) = "seen_$accountId"
-
-    private fun Set<String>.takeLastSet(n: Int): Set<String> =
-        if (size <= n) this else toList().takeLast(n).toSet()
 
     companion object {
         private const val WORK_NAME = "mail_sync_periodic"

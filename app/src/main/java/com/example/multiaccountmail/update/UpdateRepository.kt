@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 
 /**
@@ -17,7 +18,8 @@ object UpdateRepository {
     data class Release(
         val tag: String,
         val notes: String,
-        val pageUrl: String
+        val pageUrl: String,
+        val apkUrl: String
     )
 
     private val client = OkHttpClient.Builder()
@@ -38,10 +40,17 @@ object UpdateRepository {
             client.newCall(request).execute().use { response ->
                 require(response.isSuccessful) { "GitHub ответил: ${response.code}" }
                 val json = JSONObject(response.body?.string().orEmpty())
+                val assets: JSONArray = json.optJSONArray("assets") ?: JSONArray()
+                val apkUrl = (0 until assets.length())
+                    .map { assets.getJSONObject(it) }
+                    .firstOrNull { it.optString("name").endsWith(".apk", ignoreCase = true) }
+                    ?.optString("browser_download_url")
+                    .orEmpty()
                 Release(
                     tag = json.optString("tag_name"),
                     notes = json.optString("body").ifBlank { "Описание изменений не добавлено." },
-                    pageUrl = json.optString("html_url")
+                    pageUrl = json.optString("html_url"),
+                    apkUrl = apkUrl
                 )
             }
         }

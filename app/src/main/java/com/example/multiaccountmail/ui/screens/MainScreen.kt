@@ -132,6 +132,7 @@ import com.example.multiaccountmail.ui.theme.ThemeMode
 import com.example.multiaccountmail.ui.theme.UiDensity
 import com.example.multiaccountmail.ui.theme.appearance
 import com.example.multiaccountmail.update.UpdateRepository
+import com.example.multiaccountmail.update.UpdateInstaller
 import kotlinx.coroutines.launch
 
 private data class BottomTab(val title: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector)
@@ -1132,8 +1133,14 @@ private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
                     release?.let { latest ->
                         Text(latest.notes, style = MaterialTheme.typography.bodySmall, maxLines = 5, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
                         TextButton(onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(latest.pageUrl)))
-                        }) { Text("Открыть релиз и скачать APK") }
+                            if (UpdateInstaller.download(context, latest)) {
+                                updateStatus = "Обновление скачивается. После загрузки Android попросит подтвердить установку."
+                            } else if (latest.apkUrl.isBlank()) {
+                                updateStatus = "В последнем релизе нет APK."
+                            } else {
+                                updateStatus = "Разреши установку из MultiMail в системных настройках, затем нажми ещё раз."
+                            }
+                        }) { Text("Скачать и установить") }
                     }
                 }
             }

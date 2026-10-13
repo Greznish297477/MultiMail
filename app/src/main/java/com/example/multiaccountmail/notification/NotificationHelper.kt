@@ -6,10 +6,12 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.core.app.RemoteInput
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.multiaccountmail.MainActivity
 import com.example.multiaccountmail.R
+import com.example.multiaccountmail.mail.MailMessage
 
 /**
  * Уведомления, которые работают на всех устройствах, включая Huawei
@@ -24,6 +26,10 @@ object NotificationHelper {
 
     const val CHANNEL_MAIL = "mail_new"
     const val CHANNEL_SYNC = "mail_sync"
+    const val REPLY_KEY = "mail_reply"
+    const val EXTRA_ACCOUNT_ID = "account_id"
+    const val EXTRA_RECIPIENT = "recipient"
+    const val EXTRA_NOTIFICATION_ID = "notification_id"
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -89,6 +95,57 @@ object NotificationHelper {
             // Нет разрешения POST_NOTIFICATIONS
             e.printStackTrace()
         }
+    }
+
+    fun showMailNotification(context: Context, message: MailMessage) {
+        val notificationId = (message.accountId + message.id).hashCode()
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("open_folder", "Все ящики")
+        }
+        val openPending = PendingIntent.getActivity(
+            context, notificationId, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val replyIntent = Intent(context, NotificationReplyReceiver::class.java).apply {
+            putExtra(EXTRA_ACCOUNT_ID, message.accountId)
+            putExtra(EXTRA_RECIPIENT, message.fromEmail)
+            putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+        }
+        val replyPending = PendingIntent.getBroadcast(
+            context, notificationId, replyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        val remoteInput = RemoteInput.Builder(REPLY_KEY)
+            .setLabel("Ответ ${message.fromName}")
+            .build()
+        val replyAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_send,
+            "Ответить",
+            replyPending
+        ).addRemoteInput(remoteInput).setAllowGeneratedReplies(true).build()
+        val readAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_view,
+            "Прочитать",
+            openPending
+        ).build()
+        val body = message.snippet.ifBlank { message.subject }
+        val notification = NotificationCompat.Builder(context, CHANNEL_MAIL)
+            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setContentTitle(message.fromName.ifBlank { message.fromEmail })
+            .setContentText(message.subject)
+            .setSubText(message.accountEmail)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("${message.subject}\n$body"))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_EMAIL)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(openPending)
+            .addAction(readAction)
+            .addAction(replyAction)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .build()
+        runCatching { NotificationManagerCompat.from(context).notify(notificationId, notification) }
     }
 
     fun showUnifiedInboxNotification(
