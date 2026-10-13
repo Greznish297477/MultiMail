@@ -41,6 +41,25 @@ enum class BarStyle(val title: String) {
     BAR("Полоса")
 }
 
+/** Только оформление поверхностей: не влияет на данные или работу почты. */
+enum class SurfaceStyle(val title: String) {
+    MINIMAL("Минимальный"),
+    SOFT("Мягкий"),
+    CONTRAST("Контрастный")
+}
+
+enum class AccentStrength(val title: String, val containerAlpha: Float) {
+    SOFT("Нежный", 0.14f),
+    NORMAL("Обычный", 0.24f),
+    VIVID("Яркий", 0.38f)
+}
+
+enum class MotionStyle(val title: String, val stiffness: Float) {
+    CALM("Спокойно", 900f),
+    SMOOTH("Плавно", 500f),
+    LIVELY("Живо", 280f)
+}
+
 data class Appearance(
     val mode: ThemeMode = ThemeMode.SYSTEM,
     val accent: Accent = Accent.DYNAMIC,
@@ -49,6 +68,9 @@ data class Appearance(
     val barStyle: BarStyle = BarStyle.PILL,
     val amoled: Boolean = false,
     val roundCards: Boolean = true,
+    val surfaceStyle: SurfaceStyle = SurfaceStyle.SOFT,
+    val accentStrength: AccentStrength = AccentStrength.NORMAL,
+    val motionStyle: MotionStyle = MotionStyle.SMOOTH,
     val showLabels: Boolean = false,
     val fabLeft: Boolean = false,
     val showAvatars: Boolean = true,
@@ -70,6 +92,9 @@ object AppearanceStore {
             barStyle = enumOr(p.getString("bar", null), BarStyle.PILL),
             amoled = p.getBoolean("amoled", false),
             roundCards = p.getBoolean("round", true),
+            surfaceStyle = enumOr(p.getString("surfaceStyle", null), SurfaceStyle.SOFT),
+            accentStrength = enumOr(p.getString("accentStrength", null), AccentStrength.NORMAL),
+            motionStyle = enumOr(p.getString("motionStyle", null), MotionStyle.SMOOTH),
             showLabels = p.getBoolean("labels", false),
             fabLeft = p.getBoolean("fabLeft", false),
             showAvatars = p.getBoolean("showAvatars", true),
@@ -88,6 +113,9 @@ object AppearanceStore {
             .putString("bar", appearance.barStyle.name)
             .putBoolean("amoled", appearance.amoled)
             .putBoolean("round", appearance.roundCards)
+            .putString("surfaceStyle", appearance.surfaceStyle.name)
+            .putString("accentStrength", appearance.accentStrength.name)
+            .putString("motionStyle", appearance.motionStyle.name)
             .remove("liquidGlass")
             .putBoolean("labels", appearance.showLabels)
             .putBoolean("fabLeft", appearance.fabLeft)

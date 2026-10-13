@@ -14,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -85,6 +86,27 @@ fun MultiAccountMailTheme(
                 surface = Color.Black
             )
         } else scheme
+    }.let { scheme ->
+        // Безопасная косметика: меняются только цвета Material-поверхностей.
+        val alpha = appearance.accentStrength.containerAlpha
+        val accentContainer = scheme.primary.copy(alpha = alpha)
+        when (appearance.surfaceStyle) {
+            SurfaceStyle.MINIMAL -> scheme.copy(
+                primaryContainer = accentContainer,
+                surfaceContainer = scheme.surface,
+                surfaceContainerLow = scheme.surface
+            )
+            SurfaceStyle.SOFT -> scheme.copy(
+                primaryContainer = accentContainer,
+                surfaceContainer = lerp(scheme.surface, scheme.primary, if (dark) 0.10f else 0.05f),
+                surfaceContainerLow = lerp(scheme.surface, scheme.primary, if (dark) 0.06f else 0.025f)
+            )
+            SurfaceStyle.CONTRAST -> scheme.copy(
+                primaryContainer = accentContainer,
+                surfaceContainer = lerp(scheme.surfaceContainer, scheme.primary, if (dark) 0.18f else 0.10f),
+                surfaceContainerLow = lerp(scheme.surfaceContainerLow, scheme.primary, if (dark) 0.10f else 0.05f)
+            )
+        }
     }
 
     val density = LocalDensity.current

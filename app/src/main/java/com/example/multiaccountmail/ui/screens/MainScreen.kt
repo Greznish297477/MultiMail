@@ -155,6 +155,7 @@ private fun GlassPillNavigation(
     tabs: List<BottomTab>,
     selectedTab: Int,
     showLabels: Boolean,
+    motionStyle: com.example.multiaccountmail.ui.theme.MotionStyle,
     onSelect: (Int) -> Unit
 ) {
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
@@ -200,7 +201,7 @@ private fun GlassPillNavigation(
             // После отпускания пальца плашка мягко «прилипает» к выбранной вкладке.
             animationSpec = spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow
+                stiffness = motionStyle.stiffness
             ),
             label = "pill-tab-indicator"
         )
@@ -384,6 +385,7 @@ fun MainScreen(
                     tabs = tabs,
                     selectedTab = selectedTab,
                     showLabels = look.showLabels,
+                    motionStyle = look.motionStyle,
                     onSelect = { index ->
                         openedMail = null
                         composing = false
@@ -1076,6 +1078,34 @@ private fun SettingsTab(onManageAccounts: () -> Unit) {
                 }
             }
         }
+        item { Text("Внешний вид", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
+        item {
+            SettingChoiceRow(
+                title = "Поверхности",
+                values = com.example.multiaccountmail.ui.theme.SurfaceStyle.entries,
+                selected = look.surfaceStyle,
+                label = { it.title },
+                onSelect = { save(look.copy(surfaceStyle = it)) }
+            )
+        }
+        item {
+            SettingChoiceRow(
+                title = "Насыщенность цвета",
+                values = com.example.multiaccountmail.ui.theme.AccentStrength.entries,
+                selected = look.accentStrength,
+                label = { it.title },
+                onSelect = { save(look.copy(accentStrength = it)) }
+            )
+        }
+        item {
+            SettingChoiceRow(
+                title = "Анимации",
+                values = com.example.multiaccountmail.ui.theme.MotionStyle.entries,
+                selected = look.motionStyle,
+                label = { it.title },
+                onSelect = { save(look.copy(motionStyle = it)) }
+            )
+        }
         item { Text("Размер текста", fontWeight = FontWeight.SemiBold) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
@@ -1260,6 +1290,28 @@ private fun SettingsTab(onManageAccounts: () -> Unit) {
                     Text("О приложении", fontWeight = FontWeight.Medium)
                     Text("Версия ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun <T> SettingChoiceRow(
+    title: String,
+    values: Iterable<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            values.forEach { value ->
+                FilterChip(
+                    selected = value == selected,
+                    onClick = { onSelect(value) },
+                    label = { Text(label(value)) }
+                )
             }
         }
     }
