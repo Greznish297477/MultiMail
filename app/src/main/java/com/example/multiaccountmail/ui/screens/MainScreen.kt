@@ -172,8 +172,10 @@ private fun GlassPillNavigation(
                     },
                     onDragEnd = {
                         when {
-                            dragDistance < -28f && selectedTab < tabs.lastIndex -> onSelect(selectedTab + 1)
-                            dragDistance > 28f && selectedTab > 0 -> onSelect(selectedTab - 1)
+                            // Раздел следует за направлением пальца: вправо — следующий,
+                            // влево — предыдущий. Это также совпадает с движением индикатора.
+                            dragDistance > 28f && selectedTab < tabs.lastIndex -> onSelect(selectedTab + 1)
+                            dragDistance < -28f && selectedTab > 0 -> onSelect(selectedTab - 1)
                         }
                         dragDistance = 0f
                         dragOffsetPx = 0f
@@ -187,8 +189,11 @@ private fun GlassPillNavigation(
     ) {
         val segmentWidth = maxWidth / tabs.size
         val maxDrag = with(androidx.compose.ui.platform.LocalDensity.current) { (segmentWidth * 0.75f).toPx() }
+        // Не позволяем индикатору перескочить за край первой или последней вкладки.
+        val leftLimit = if (selectedTab == 0) 0f else -maxDrag
+        val rightLimit = if (selectedTab == tabs.lastIndex) 0f else maxDrag
         val dragOffset = with(androidx.compose.ui.platform.LocalDensity.current) {
-            dragOffsetPx.coerceIn(-maxDrag, maxDrag).toDp()
+            dragOffsetPx.coerceIn(leftLimit, rightLimit).toDp()
         }
         val indicatorOffset by animateDpAsState(
             targetValue = segmentWidth * selectedTab,
@@ -577,8 +582,21 @@ private fun MailTab(
     val counts = MailCategory.entries.associateWith { cat -> mails.count { it.category == cat } }
 
     when {
-        loading && mails.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { AppLoadingIndicator() }
-        mails.isEmpty() -> EmptyState(error ?: "В этой папке писем нет")
+        loading && mails.isEmpty() -> MailEmptyContent(
+            title = accountLabel ?: folder.title,
+            onMenu = onMenu,
+            onRefresh = onRefresh
+        ) { AppLoadingIndicator() }
+        mails.isEmpty() -> MailEmptyContent(
+            title = accountLabel ?: folder.title,
+            onMenu = onMenu,
+            onRefresh = onRefresh
+        ) {
+            EmptyState(
+                error ?: "В этой папке писем нет",
+                modifier = Modifier.weight(1f)
+            )
+        }
         else -> {
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
@@ -1192,7 +1210,7 @@ private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
             Card(onClick = { openAppSettings() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(16.dp)) {
                     Text("О приложении", fontWeight = FontWeight.Medium)
-                    Text("Версия 1.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Версия ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -1200,8 +1218,25 @@ private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
 }
 
 @Composable
-private fun EmptyState(message: String) {
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+private fun MailEmptyContent(
+    title: String,
+    onMenu: () -> Unit,
+    onRefresh: () -> Unit,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, contentDescription = "Меню") }
+            Text(title, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+            IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, contentDescription = "Обновить") }
+        }
+        content()
+    }
+}
+
+@Composable
+private fun EmptyState(message: String, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
         Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
