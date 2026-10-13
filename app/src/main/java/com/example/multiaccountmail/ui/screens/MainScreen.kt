@@ -134,6 +134,7 @@ import com.example.multiaccountmail.ui.theme.appearance
 import com.example.multiaccountmail.update.UpdateRepository
 import com.example.multiaccountmail.update.UpdateInstaller
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private data class BottomTab(val title: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector)
 private data class DrawerFolder(val folder: MailFolder, val icon: ImageVector)
@@ -164,34 +165,32 @@ private fun GlassPillNavigation(
             .height(if (showLabels) 68.dp else 58.dp)
             .clip(RoundedCornerShape(50))
             .pointerInput(selectedTab) {
-                var dragDistance = 0f
                 detectHorizontalDragGestures(
                     onHorizontalDrag = { _, amount ->
-                        dragDistance += amount
                         dragOffsetPx += amount
                     },
                     onDragEnd = {
-                        when {
-                            // Раздел следует за направлением пальца: вправо — следующий,
-                            // влево — предыдущий. Это также совпадает с движением индикатора.
-                            dragDistance > 28f && selectedTab < tabs.lastIndex -> onSelect(selectedTab + 1)
-                            dragDistance < -28f && selectedTab > 0 -> onSelect(selectedTab - 1)
-                        }
-                        dragDistance = 0f
+                        // Плашку можно провести через любое число вкладок. После отпускания
+                        // она фиксируется на ближайшей вкладке вместе с её содержимым.
+                        val segmentPx = size.width.toFloat() / tabs.size
+                        val target = (selectedTab + dragOffsetPx / segmentPx)
+                            .roundToInt()
+                            .coerceIn(0, tabs.lastIndex)
+                        if (target != selectedTab) onSelect(target)
                         dragOffsetPx = 0f
                     },
                     onDragCancel = {
-                        dragDistance = 0f
                         dragOffsetPx = 0f
                     }
                 )
             }
     ) {
         val segmentWidth = maxWidth / tabs.size
-        val maxDrag = with(androidx.compose.ui.platform.LocalDensity.current) { (segmentWidth * 0.75f).toPx() }
-        // Не позволяем индикатору перескочить за край первой или последней вкладки.
-        val leftLimit = if (selectedTab == 0) 0f else -maxDrag
-        val rightLimit = if (selectedTab == tabs.lastIndex) 0f else maxDrag
+        val segmentPx = with(androidx.compose.ui.platform.LocalDensity.current) { segmentWidth.toPx() }
+        // Движение не ограничено одним соседним разделом: можно протянуть плашку
+        // сразу к любому разделу. Ограничение действует только по краям панели.
+        val leftLimit = -selectedTab * segmentPx
+        val rightLimit = (tabs.lastIndex - selectedTab) * segmentPx
         val dragOffset = with(androidx.compose.ui.platform.LocalDensity.current) {
             dragOffsetPx.coerceIn(leftLimit, rightLimit).toDp()
         }
