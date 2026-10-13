@@ -9,10 +9,20 @@ import javax.mail.Session
 import javax.mail.Transport
 import javax.mail.internet.InternetAddress
 import javax.mail.internet.MimeMessage
+import javax.mail.internet.MimeBodyPart
+import javax.mail.internet.MimeMultipart
+import javax.mail.util.ByteArrayDataSource
 
 object MailSender {
 
-    suspend fun send(account: Account, to: String, subject: String, body: String): String? = withContext(Dispatchers.IO) {
+    suspend fun send(
+        context: Context,
+        account: Account,
+        to: String,
+        subject: String,
+        body: String,
+        attachments: List<Uri> = emptyList()
+    ): String? = withContext(Dispatchers.IO) {
         val password = account.appPassword
         if (password.isNullOrBlank()) {
             return@withContext "Чтобы отправить из приложения, добавьте ящик с паролем приложения. Обычный пароль от почты сервер не примет."
@@ -36,7 +46,27 @@ object MailSender {
                 setFrom(InternetAddress(account.email, account.displayName))
                 setRecipients(Message.RecipientType.TO, recipients.joinToString(","))
                 setSubject(subject.ifBlank { "(без темы)" }, "UTF-8")
-                setText(body, "UTF-8")
+                if (attachments.isEmpty()) {
+                    setText(body, "UTF-8")
+                } else {
+                    val multipart = MimeMultipart()
+                    multipart.addBodyPart(MimeBodyPart().apply { setText(body, "UTF-8") })
+                    attachments.forEach { uri ->
+                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                            ?: throw IllegalArgumentException("Не удалось открыть вложение")
+                        val fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                            val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                            if (cursor.moveToFirst() && index >= 0) cursor.getString(index) else null
+                        } ?: "attachment"
+                        multipart.addBodyPart(MimeBodyPart().apply {
+                            dataHandler = javax.activation.DataHandler(
+                                ByteArrayDataSource(bytes, context.contentResolver.getType(uri) ?: "application/octet-stream")
+                            )
+                            this.fileName = fileName
+                        })
+                    }
+                    setContent(multipart)
+                }
             }
             Transport.send(message, account.email, password)
             null
@@ -45,3 +75,5 @@ object MailSender {
         }
     }
 }
+import android.content.Context
+import android.net.Uri

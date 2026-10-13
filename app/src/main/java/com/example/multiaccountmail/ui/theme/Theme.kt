@@ -85,15 +85,6 @@ fun MultiAccountMailTheme(
                 surface = Color.Black
             )
         } else scheme
-    }.let { scheme ->
-        if (appearance.liquidGlass) {
-            scheme.copy(
-                surfaceContainer = scheme.surface.copy(alpha = 0.72f),
-                surfaceContainerLow = scheme.surface.copy(alpha = 0.58f),
-                surfaceContainerHigh = scheme.primary.copy(alpha = if (dark) 0.24f else 0.16f),
-                primaryContainer = scheme.primary.copy(alpha = if (dark) 0.34f else 0.20f)
-            )
-        } else scheme
     }
 
     val density = LocalDensity.current

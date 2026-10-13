@@ -153,7 +153,6 @@ private fun GlassPillNavigation(
     tabs: List<BottomTab>,
     selectedTab: Int,
     showLabels: Boolean,
-    liquidGlass: Boolean,
     onSelect: (Int) -> Unit
 ) {
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
@@ -206,7 +205,7 @@ private fun GlassPillNavigation(
                 .width(segmentWidth - 8.dp)
                 .height(if (showLabels) 60.dp else 50.dp)
                 .clip(RoundedCornerShape(50))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = if (liquidGlass) 0.72f else 0.30f))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.30f))
         )
         Row(Modifier.fillMaxSize()) {
             tabs.forEachIndexed { index, tab ->
@@ -379,7 +378,6 @@ fun MainScreen(
                     tabs = tabs,
                     selectedTab = selectedTab,
                     showLabels = look.showLabels,
-                    liquidGlass = look.liquidGlass,
                     onSelect = { index ->
                         openedMail = null
                         composing = false
@@ -420,6 +418,7 @@ fun MainScreen(
                             showAccountManager = false
                         },
                         onBack = { showAccountManager = false },
+                        onAddAccount = onAddAccount,
                         onRemove = {
                             tokenStorage.clearTokens(it)
                             repository.removeAccount(it)
@@ -844,6 +843,7 @@ private fun AccountsTab(
     tokenStorage: TokenStorage,
     onSelect: (String) -> Unit,
     onBack: () -> Unit,
+    onAddAccount: () -> Unit,
     onRemove: (String) -> Unit,
     onReorder: (Int, Int) -> Unit,
     onSave: (String, String, String, Provider, String?, String?, String?) -> Unit
@@ -872,6 +872,11 @@ private fun AccountsTab(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 12.dp, top = 4.dp)
             )
+            Button(onClick = onAddAccount, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Добавить ящик")
+            }
         }
         items(sorted.size) { index ->
             val account = sorted[index]
@@ -1095,32 +1100,6 @@ private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
             }
         }
         item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (look.liquidGlass) Modifier.border(
-                            1.dp,
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f),
-                            RoundedCornerShape(20.dp)
-                        ) else Modifier
-                    ),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (look.liquidGlass) MaterialTheme.colorScheme.surface.copy(alpha = 0.68f)
-                    else MaterialTheme.colorScheme.surfaceContainerLow
-                )
-            ) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Liquid Glass", fontWeight = FontWeight.Medium)
-                        Text("Прозрачные поверхности, мягкие контуры и стеклянная капсула снизу", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Switch(checked = look.liquidGlass, onCheckedChange = { save(look.copy(liquidGlass = it)) })
-                }
-            }
-        }
-        item {
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -1202,13 +1181,13 @@ private fun SettingsTab(onSyncNow: () -> Unit, onManageAccounts: () -> Unit) {
                             Text(latest.notes, style = MaterialTheme.typography.bodySmall, maxLines = 5, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
                             TextButton(onClick = {
                                 if (UpdateInstaller.download(context, latest)) {
-                                    updateStatus = "Обновление скачивается. После загрузки Android попросит подтвердить установку."
+                                    updateStatus = "Обновление скачивается. После загрузки MultiMail сам откроет системную установку."
                                 } else if (latest.apkUrl.isBlank()) {
                                     updateStatus = "В последнем релизе нет APK."
                                 } else {
                                     updateStatus = "Разреши установку из MultiMail в системных настройках, затем нажми ещё раз."
                                 }
-                            }) { Text("Скачать и установить") }
+                            }) { Text("Скачать и установить автоматически") }
                         }
                     }
                 }

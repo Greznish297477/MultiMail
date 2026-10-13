@@ -194,7 +194,8 @@ object ImapFetcher {
                 fromName = fromName,
                 fromEmail = fromEmail,
                 subject = msg.subject?.ifBlank { null } ?: "(без темы)",
-                snippet = "",
+                snippet = messageText(msg).replace(Regex("\\s+"), " ").take(160),
+                body = messageText(msg),
                 date = msg.sentDate?.let { dateFmt.format(it) }.orEmpty(),
                 timestamp = stamp,
                 isUnread = unread,
@@ -210,6 +211,23 @@ object ImapFetcher {
             null
         }
     }
+
+    /** Берёт HTML или текст письма, сохраняя стили/фон HTML для экрана чтения. */
+    private fun messageText(message: Message): String = runCatching {
+        when (val content = message.content) {
+            is String -> content
+            is MimeMultipart -> (0 until content.count).asSequence()
+                .map { content.getBodyPart(it) }
+                .mapNotNull { part ->
+                    when {
+                        part.isMimeType("text/html") || part.isMimeType("text/plain") -> part.content as? String
+                        else -> null
+                    }
+                }
+                .firstOrNull().orEmpty()
+            else -> ""
+        }
+    }.getOrDefault("")
 
     private fun hostsFor(account: Account, host: String): List<String> =
         CorporateMail.hosts(account.email, account.provider, host)

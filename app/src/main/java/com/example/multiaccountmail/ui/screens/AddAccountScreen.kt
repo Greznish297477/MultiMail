@@ -62,7 +62,6 @@ fun AddAccountScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val look = appearance()
     val scope = rememberCoroutineScope()
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -146,10 +145,9 @@ fun AddAccountScreen(
                     googleSignInLauncher.launch(GoogleAuthHelper.getSignInIntent(context))
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(if (look.liquidGlass) 24.dp else 16.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (look.liquidGlass) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-                    else MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
                 Column(Modifier.padding(20.dp)) {
@@ -175,10 +173,9 @@ fun AddAccountScreen(
                     statusMessage = "Gmail выбран. Введи адрес и пароль приложения Google в форме ниже. Этот способ работает без Google Play Services и microG."
                 },
                 modifier = Modifier.fillMaxWidth(),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(if (look.liquidGlass) 24.dp else 16.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (look.liquidGlass) MaterialTheme.colorScheme.secondary.copy(alpha = 0.20f)
-                    else MaterialTheme.colorScheme.secondaryContainer
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
                 )
             ) {
                 Column(Modifier.padding(20.dp)) {
@@ -373,7 +370,6 @@ private fun guessProvider(email: String, current: Provider): Provider {
 
 @Composable
 private fun ProviderPicker(selected: Provider, onSelect: (Provider) -> Unit) {
-    val look = appearance()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Сервис", style = MaterialTheme.typography.labelLarge)
         Provider.entries.forEach { provider ->
@@ -381,11 +377,10 @@ private fun ProviderPicker(selected: Provider, onSelect: (Provider) -> Unit) {
                 onClick = { onSelect(provider) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (provider == selected && look.liquidGlass) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
-                    else if (provider == selected) MaterialTheme.colorScheme.primaryContainer
+                    containerColor = if (provider == selected) MaterialTheme.colorScheme.primaryContainer
                     else MaterialTheme.colorScheme.surfaceContainerLow
                 ),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(if (look.liquidGlass) 20.dp else 12.dp)
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
             ) {
                 Text(
                     provider.displayName + provider.defaultHost().let { if (it.isBlank()) "" else " · $it" },

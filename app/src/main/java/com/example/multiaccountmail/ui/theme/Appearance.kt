@@ -55,7 +55,6 @@ data class Appearance(
     val barStyle: BarStyle = BarStyle.PILL,
     val amoled: Boolean = false,
     val roundCards: Boolean = true,
-    val liquidGlass: Boolean = false,
     val showLabels: Boolean = false,
     val fabLeft: Boolean = false,
     val loadingStyle: LoadingStyle = LoadingStyle.CIRCLE,
@@ -78,7 +77,6 @@ object AppearanceStore {
             barStyle = enumOr(p.getString("bar", null), BarStyle.PILL),
             amoled = p.getBoolean("amoled", false),
             roundCards = p.getBoolean("round", true),
-            liquidGlass = p.getBoolean("liquidGlass", false),
             showLabels = p.getBoolean("labels", false),
             fabLeft = p.getBoolean("fabLeft", false),
             loadingStyle = enumOr(p.getString("loadingStyle", null), LoadingStyle.CIRCLE),
@@ -98,7 +96,7 @@ object AppearanceStore {
             .putString("bar", appearance.barStyle.name)
             .putBoolean("amoled", appearance.amoled)
             .putBoolean("round", appearance.roundCards)
-            .putBoolean("liquidGlass", appearance.liquidGlass)
+            .remove("liquidGlass")
             .putBoolean("labels", appearance.showLabels)
             .putBoolean("fabLeft", appearance.fabLeft)
             .putString("loadingStyle", appearance.loadingStyle.name)

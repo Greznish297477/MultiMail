@@ -8,7 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 
-/** Скачивает APK релиза и открывает штатное системное окно установки. */
+/** Скачивает APK релиза и сразу после завершения открывает штатное системное окно установки. */
 object UpdateInstaller {
     private const val PREFS = "app_update"
     private const val KEY_ID = "download_id"
@@ -24,7 +24,7 @@ object UpdateInstaller {
         }
         val request = DownloadManager.Request(Uri.parse(release.apkUrl))
             .setTitle("MultiMail ${release.tag}")
-            .setDescription("Скачиваю обновление приложения")
+            .setDescription("Обновление будет установлено сразу после загрузки")
             .setMimeType("application/vnd.android.package-archive")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -38,6 +38,8 @@ object UpdateInstaller {
         if (id != expected) return
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val uri = manager.getUriForDownloadedFile(id) ?: return
+        // Receiver вызывается DownloadManager автоматически: пользователю не нужно
+        // искать завершённую загрузку в уведомлениях.
         context.startActivity(Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
