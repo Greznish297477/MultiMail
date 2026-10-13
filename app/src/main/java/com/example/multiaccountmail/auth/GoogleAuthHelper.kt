@@ -55,7 +55,7 @@ object GoogleAuthHelper {
             e.printStackTrace()
             val message = when (e.statusCode) {
                 7 -> "Нет подключения к Google. Проверь интернет."
-                8 -> "Сбой Google Play Services (код 8). Нажми «Повторить вход». Если не поможет — обнови Сервисы Google Play и перезапусти приложение."
+                8 -> "microG/Google Play Services не выдали доступ (код 8). На Huawei надёжнее подключить Gmail ниже через IMAP и пароль приложения Google."
                 10 -> "Google отклонил вход (код 10). Добавь SHA-1 текущей подписи и Android OAuth Client в Google Cloud Console."
                 12500 -> "Google Sign-In не настроен для этого APK. Проверь package name и SHA-1 в Google Cloud Console."
                 12501 -> "Вход Google отменён."

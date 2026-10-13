@@ -159,6 +159,25 @@ fun AddAccountScreen(
                 }
             }
 
+            Card(
+                onClick = {
+                    manualProvider = Provider.GOOGLE
+                    manualHost = Provider.GOOGLE.defaultHost()
+                    statusMessage = "Gmail выбран. Введи адрес и пароль приложения Google в форме ниже. Этот способ работает без Google Play Services и microG."
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(if (look.liquidGlass) 24.dp else 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (look.liquidGlass) MaterialTheme.colorScheme.secondary.copy(alpha = 0.20f)
+                    else MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("Gmail через IMAP", style = MaterialTheme.typography.titleMedium)
+                    Text("Для Huawei и microG: вход по паролю приложения Google, без сервисов Google Play")
+                }
+            }
+
             Spacer(Modifier.height(8.dp))
             Text("Почта по IMAP", style = MaterialTheme.typography.titleMedium)
             Text(
