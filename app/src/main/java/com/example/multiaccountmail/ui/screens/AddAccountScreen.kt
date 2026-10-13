@@ -44,11 +44,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.multiaccountmail.auth.GoogleAuthHelper
 import com.example.multiaccountmail.data.AccountRepository
+import com.example.multiaccountmail.data.MailProtocol
 import com.example.multiaccountmail.data.Provider
 import com.example.multiaccountmail.data.TokenStorage
 import com.example.multiaccountmail.mail.CorporateMail
 import com.example.multiaccountmail.mail.ImapFetcher
 import com.example.multiaccountmail.mail.MailFolder
+import com.example.multiaccountmail.mail.PopFetcher
 import com.example.multiaccountmail.ui.theme.appearance
 import kotlinx.coroutines.launch
 
@@ -70,6 +72,7 @@ fun AddAccountScreen(
     var manualPassword by remember { mutableStateOf("") }
     var manualHost by remember { mutableStateOf("") }
     var manualProvider by remember { mutableStateOf(Provider.OTHER) }
+    var manualProtocol by remember { mutableStateOf(MailProtocol.IMAP) }
     var googleRetry by remember { mutableStateOf(false) }
     var showGoogleBrowser by remember { mutableStateOf(false) }
 
@@ -127,7 +130,7 @@ fun AddAccountScreen(
                 }
                 Column(Modifier.weight(1f)) {
                     Text("Добавить почту", style = MaterialTheme.typography.titleLarge)
-                    Text("Подключите Google или IMAP-ящик", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Подключите Google, IMAP- или POP3-ящик", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (isLoading) {
@@ -189,9 +192,9 @@ fun AddAccountScreen(
             }
 
             Spacer(Modifier.height(8.dp))
-            Text("Почта по IMAP", style = MaterialTheme.typography.titleMedium)
+            Text("Почта по IMAP / POP3", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Добавьте Яндекс, Mail.ru, Outlook, рабочий или другой ящик. Используйте пароль приложения или пароль от администратора.",
+                "Пароль можно не вводить при добавлении, но без него письма не загрузятся. POP3 читает только входящие.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -200,6 +203,13 @@ fun AddAccountScreen(
                 manualProvider = picked
                 if (manualHost.isBlank() || manualHost in knownHosts) {
                     manualHost = picked.defaultHost()
+                }
+            }
+
+            ProtocolPicker(manualProtocol) { picked ->
+                manualProtocol = picked
+                if (manualHost.isBlank() || manualHost in knownHosts || manualHost in knownPopHosts) {
+                    manualHost = manualProvider.defaultHost(picked)
                 }
             }
 
@@ -225,7 +235,7 @@ fun AddAccountScreen(
             OutlinedTextField(
                 value = manualPassword,
                 onValueChange = { manualPassword = it },
-                label = { Text("Пароль приложения") },
+                label = { Text("Пароль приложения (необязательно)") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth()
@@ -233,7 +243,7 @@ fun AddAccountScreen(
             OutlinedTextField(
                 value = manualHost,
                 onValueChange = { manualHost = it },
-                label = { Text("IMAP-сервер") },
+                label = { Text(if (manualProtocol == MailProtocol.IMAP) "IMAP-сервер" else "POP3-сервер") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -241,47 +251,53 @@ fun AddAccountScreen(
                 onClick = {
                     val email = manualEmail.trim()
                     val password = manualPassword.trim()
-                    val host = manualHost.trim().ifBlank {
-                        CorporateMail.hosts(email, manualProvider, null).firstOrNull().orEmpty()
-                    }
-                    if (email.isBlank() || !email.contains("@") || password.isBlank() || host.isBlank()) {
-                        statusMessage = "Нужны email, пароль приложения и IMAP-сервер"
+                    val host = manualHost.trim().ifBlank { manualProvider.defaultHost(manualProtocol) }
+                    if (email.isBlank() || !email.contains("@") || host.isBlank()) {
+                        statusMessage = "Нужны email и ${if (manualProtocol == MailProtocol.IMAP) "IMAP" else "POP3"}-сервер"
                         return@Button
                     }
                     scope.launch {
                         isLoading = true
-                        statusMessage = "Проверяю $host..."
+                        statusMessage = if (password.isBlank()) "Добавляю ящик без проверки пароля..." else "Проверяю $host..."
                         val probe = com.example.multiaccountmail.data.Account(
                             id = "probe",
                             email = email,
                             displayName = manualName.ifBlank { email.substringBefore("@") },
                             provider = manualProvider,
                             appPassword = password,
+                            protocol = manualProtocol,
                             imapHost = host,
                             smtpHost = CorporateMail.smtp(email, manualProvider, host)
                         )
-                        val result = ImapFetcher.fetch(probe, MailFolder.INBOX, max = 1)
-                        if (result.error != null && result.messages.isEmpty()) {
-                            statusMessage = result.error
-                            isLoading = false
-                            return@launch
+                        if (password.isNotBlank()) {
+                            val result = if (manualProtocol == MailProtocol.IMAP) {
+                                ImapFetcher.fetch(probe, MailFolder.INBOX, max = 1)
+                            } else {
+                                PopFetcher.fetch(probe, MailFolder.INBOX, max = 1)
+                            }
+                            if (result.error != null && result.messages.isEmpty()) {
+                                statusMessage = result.error
+                                isLoading = false
+                                return@launch
+                            }
                         }
                         val saved = repository.addAccount(
                             email = email,
                             displayName = manualName.ifBlank { email.substringBefore("@") },
                             provider = manualProvider,
-                            appPassword = password,
+                            appPassword = password.ifBlank { null },
+                            protocol = manualProtocol,
                             imapHost = host,
                             smtpHost = CorporateMail.smtp(email, manualProvider, host)
                         )
-                        tokenStorage.saveTokens(saved.id, null, appPassword = password)
+                        if (password.isNotBlank()) tokenStorage.saveTokens(saved.id, null, appPassword = password)
                         isLoading = false
                         onBack()
                     }
                 },
                 enabled = !isLoading,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Проверить и добавить") }
+            ) { Text(if (manualPassword.isBlank()) "Добавить без пароля" else "Проверить и добавить") }
 
             statusMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.primary)
@@ -296,10 +312,14 @@ private val knownHosts = setOf(
     "imap.gmail.com", "imap.yandex.ru", "imap.mail.ru", "outlook.office365.com"
 )
 
-private fun Provider.defaultHost(): String = when (this) {
-    Provider.GOOGLE -> "imap.gmail.com"
-    Provider.YANDEX -> "imap.yandex.ru"
-    Provider.MAILRU -> "imap.mail.ru"
+private val knownPopHosts = setOf(
+    "pop.gmail.com", "pop.yandex.ru", "pop.mail.ru", "outlook.office365.com"
+)
+
+private fun Provider.defaultHost(protocol: MailProtocol = MailProtocol.IMAP): String = when (this) {
+    Provider.GOOGLE -> if (protocol == MailProtocol.IMAP) "imap.gmail.com" else "pop.gmail.com"
+    Provider.YANDEX -> if (protocol == MailProtocol.IMAP) "imap.yandex.ru" else "pop.yandex.ru"
+    Provider.MAILRU -> if (protocol == MailProtocol.IMAP) "imap.mail.ru" else "pop.mail.ru"
     Provider.OUTLOOK -> "outlook.office365.com"
     Provider.OTHER -> ""
 }
@@ -310,6 +330,33 @@ private fun Provider.defaultSmtp(): String = when (this) {
     Provider.MAILRU -> "smtp.mail.ru"
     Provider.OUTLOOK -> "smtp.office365.com"
     Provider.OTHER -> ""
+}
+
+@Composable
+private fun ProtocolPicker(selected: MailProtocol, onSelect: (MailProtocol) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Протокол", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MailProtocol.entries.forEach { protocol ->
+                Card(
+                    onClick = { onSelect(protocol) },
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (protocol == selected) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(protocol.title, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            if (protocol == MailProtocol.IMAP) "Папки и действия" else "Только входящие",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 private fun guessProvider(email: String, current: Provider): Provider {

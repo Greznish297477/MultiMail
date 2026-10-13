@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.multiaccountmail"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.2.9"
+        versionCode = 10
+        versionName = "1.2.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

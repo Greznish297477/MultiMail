@@ -46,6 +46,7 @@ class AccountRepository(context: Context) {
         refreshToken: String? = null,
         avatarUrl: String? = null,
         appPassword: String? = null,
+        protocol: MailProtocol = MailProtocol.IMAP,
         imapHost: String? = null,
         imapPort: Int = 993,
         smtpHost: String? = null,
@@ -61,6 +62,7 @@ class AccountRepository(context: Context) {
                 idToken = idToken ?: existing.idToken,
                 refreshToken = refreshToken ?: existing.refreshToken,
                 appPassword = appPassword ?: existing.appPassword,
+                protocol = protocol,
                 imapHost = imapHost ?: existing.imapHost,
                 imapPort = if (imapHost != null) imapPort else existing.imapPort,
                 smtpHost = smtpHost ?: existing.smtpHost,
@@ -83,6 +85,7 @@ class AccountRepository(context: Context) {
             idToken = idToken,
             refreshToken = refreshToken,
             appPassword = appPassword,
+            protocol = protocol,
             imapHost = imapHost,
             imapPort = imapPort,
             smtpHost = smtpHost,
@@ -190,6 +193,7 @@ class AccountRepository(context: Context) {
                     put("provider", acc.provider.name)
                     put("avatarUrl", acc.avatarUrl ?: "")
                     put("order", acc.order)
+                    put("protocol", acc.protocol.name)
                     put("imapHost", acc.imapHost ?: "")
                     put("imapPort", acc.imapPort)
                     put("smtpHost", acc.smtpHost ?: "")
@@ -218,6 +222,7 @@ class AccountRepository(context: Context) {
                             provider = Provider.fromName(o.optString("provider")),
                             avatarUrl = o.optString("avatarUrl").ifBlank { null },
                             order = o.optInt("order", i),
+                            protocol = runCatching { MailProtocol.valueOf(o.optString("protocol")) }.getOrDefault(MailProtocol.IMAP),
                             imapHost = o.optString("imapHost").ifBlank { null },
                             imapPort = o.optInt("imapPort", 993),
                             smtpHost = o.optString("smtpHost").ifBlank { null },

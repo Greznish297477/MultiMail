@@ -2,6 +2,8 @@ package com.example.multiaccountmail.data
 
 import androidx.compose.ui.graphics.Color
 
+enum class MailProtocol(val title: String) { IMAP("IMAP"), POP3("POP3") }
+
 enum class Provider(
     val displayName: String,
     val primaryColor: Color,
@@ -44,6 +46,7 @@ data class Account(
     val idToken: String? = null,
     val refreshToken: String? = null,
     val appPassword: String? = null,
+    val protocol: MailProtocol = MailProtocol.IMAP,
     val imapHost: String? = null,
     val imapPort: Int = 993,
     val smtpHost: String? = null,

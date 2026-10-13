@@ -2,6 +2,7 @@ package com.example.multiaccountmail.mail
 
 import android.content.Context
 import com.example.multiaccountmail.data.Account
+import com.example.multiaccountmail.data.MailProtocol
 import com.example.multiaccountmail.data.Provider
 import com.example.multiaccountmail.data.TokenStorage
 import kotlinx.coroutines.async
@@ -45,6 +46,7 @@ object MailRepository {
 
     suspend fun loadOne(context: Context, account: Account, folder: MailFolder): FetchResult {
         return when {
+            account.protocol == MailProtocol.POP3 -> PopFetcher.fetch(account, folder)
             account.provider == Provider.GOOGLE && account.appPassword.isNullOrBlank() ->
                 GmailFetcher.fetch(context, account, folder)
             account.provider == Provider.YANDEX ->
@@ -61,6 +63,7 @@ object MailRepository {
     suspend fun unreadPreview(context: Context, account: Account): FetchResult {
         val folder = MailFolder.UNREAD
         val result = when {
+            account.protocol == MailProtocol.POP3 -> PopFetcher.fetch(account, folder, max = 25)
             account.provider == Provider.GOOGLE && account.appPassword.isNullOrBlank() ->
                 GmailFetcher.fetch(context, account, folder)
             else -> ImapFetcher.fetch(account, folder)
