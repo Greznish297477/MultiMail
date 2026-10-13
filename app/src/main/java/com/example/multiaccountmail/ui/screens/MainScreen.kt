@@ -237,14 +237,19 @@ private fun GlassPillNavigation(
 fun MainScreen(
     repository: AccountRepository,
     tokenStorage: TokenStorage,
-    onAddAccount: () -> Unit
+    onAddAccount: () -> Unit,
+    allowEmptyAccounts: Boolean,
+    onContinueWithoutMail: () -> Unit
 ) {
     val accounts by repository.accounts.collectAsState()
     val currentId by repository.currentAccountId.collectAsState()
     val currentAccount = accounts.find { it.id == currentId }
 
-    if (accounts.isEmpty()) {
-        LoginRequiredScreen(onAddAccount = onAddAccount)
+    if (accounts.isEmpty() && !allowEmptyAccounts) {
+        LoginRequiredScreen(
+            onAddAccount = onAddAccount,
+            onContinueWithoutMail = onContinueWithoutMail
+        )
         return
     }
 
@@ -471,7 +476,7 @@ fun MainScreen(
 }
 
 @Composable
-private fun LoginRequiredScreen(onAddAccount: () -> Unit) {
+private fun LoginRequiredScreen(onAddAccount: () -> Unit, onContinueWithoutMail: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
             Icon(Icons.Default.Email, null, Modifier.size(72.dp), tint = MaterialTheme.colorScheme.primary)
@@ -496,6 +501,15 @@ private fun LoginRequiredScreen(onAddAccount: () -> Unit) {
                     Text("Добавить аккаунт")
                 }
             }
+            Spacer(Modifier.height(12.dp))
+            TextButton(onClick = onContinueWithoutMail) {
+                Text("Продолжить без почты")
+            }
+            Text(
+                "Ящик можно добавить позже в разделе «Все».",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

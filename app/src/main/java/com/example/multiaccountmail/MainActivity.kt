@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var repository: AccountRepository
     private lateinit var tokenStorage: TokenStorage
+    private val startupPrefs by lazy { getSharedPreferences("startup_preferences", MODE_PRIVATE) }
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -38,6 +39,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             MultiAccountMailTheme {
                 var showAddAccount by androidx.compose.runtime.remember { mutableStateOf(false) }
+                var continueWithoutMail by androidx.compose.runtime.remember {
+                    mutableStateOf(startupPrefs.getBoolean("continue_without_mail", false))
+                }
                 if (showAddAccount) {
                     AddAccountScreen(
                         repository = repository,
@@ -50,7 +54,12 @@ class MainActivity : ComponentActivity() {
                     MainScreen(
                         repository = repository,
                         tokenStorage = tokenStorage,
-                        onAddAccount = { showAddAccount = true }
+                        onAddAccount = { showAddAccount = true },
+                        allowEmptyAccounts = continueWithoutMail,
+                        onContinueWithoutMail = {
+                            startupPrefs.edit().putBoolean("continue_without_mail", true).apply()
+                            continueWithoutMail = true
+                        }
                     )
                 }
             }
