@@ -71,7 +71,13 @@ object GmailFetcher {
                 // INBOX возвращает все входящие категории Gmail: основные, личные,
                 // рабочие письма и рассылки. Категория используется только для UI,
                 // но никогда не является фильтром загрузки.
-                request.labelIds = listOf(label)
+                if (folder == MailFolder.INBOX || folder == MailFolder.UNIFIED) {
+                    // Явный запрос Gmail надёжнее labelIds: письма от обычных
+                    // отправителей и письма без CATEGORY_* тоже попадают в список.
+                    request.q = "in:inbox"
+                } else {
+                    request.labelIds = listOf(label)
+                }
                 request.includeSpamTrash = false
             }
 

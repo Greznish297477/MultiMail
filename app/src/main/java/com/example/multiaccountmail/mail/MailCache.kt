@@ -33,6 +33,7 @@ object MailCache {
                             fromEmail = o.optString("fromEmail"),
                             subject = o.optString("subject"),
                             snippet = o.optString("snippet"),
+                            body = o.optString("body"),
                             date = o.optString("date"),
                             timestamp = o.optLong("timestamp"),
                             isUnread = o.optBoolean("unread"),
@@ -62,6 +63,7 @@ object MailCache {
                     put("fromEmail", m.fromEmail)
                     put("subject", m.subject)
                     put("snippet", m.snippet)
+                    put("body", m.body)
                     put("date", m.date)
                     put("timestamp", m.timestamp)
                     put("unread", m.isUnread)

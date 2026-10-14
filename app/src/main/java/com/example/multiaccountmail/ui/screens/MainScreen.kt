@@ -10,11 +10,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +33,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -109,7 +109,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -117,7 +120,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.multiaccountmail.data.Account
@@ -158,7 +160,6 @@ private fun GlassPillNavigation(
     selectedTab: Int,
     showLabels: Boolean,
     motionStyle: com.example.multiaccountmail.ui.theme.MotionStyle,
-    onDragProgress: (Float) -> Unit,
     onSelect: (Int) -> Unit
 ) {
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
@@ -173,7 +174,6 @@ private fun GlassPillNavigation(
                 detectHorizontalDragGestures(
                     onHorizontalDrag = { _, amount ->
                         dragOffsetPx += amount
-                        onDragProgress(dragOffsetPx / size.width.coerceAtLeast(1).toFloat())
                     },
                     onDragEnd = {
                         // Плашку можно провести через любое число вкладок. После отпускания
@@ -184,11 +184,9 @@ private fun GlassPillNavigation(
                             .coerceIn(0, tabs.lastIndex)
                         if (target != selectedTab) onSelect(target)
                         dragOffsetPx = 0f
-                        onDragProgress(0f)
                     },
                     onDragCancel = {
                         dragOffsetPx = 0f
-                        onDragProgress(0f)
                     }
                 )
             }
@@ -277,7 +275,6 @@ fun MainScreen(
     var openedMail by remember { mutableStateOf<MailMessage?>(null) }
     var composing by remember { mutableStateOf(false) }
     var showAccountManager by remember { mutableStateOf(false) }
-    var tabDragProgress by remember { mutableFloatStateOf(0f) }
     var refreshToken by remember { mutableIntStateOf(0) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val look = appearance()
@@ -393,12 +390,10 @@ fun MainScreen(
                     selectedTab = selectedTab,
                     showLabels = look.showLabels,
                     motionStyle = look.motionStyle,
-                    onDragProgress = { tabDragProgress = it },
                     onSelect = { index ->
                         openedMail = null
                         composing = false
                         showAccountManager = false
-                        tabDragProgress = 0f
                         selectedTab = index
                     }
                 )
@@ -424,17 +419,7 @@ fun MainScreen(
                 }
             }
         ) { padding ->
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    // Пока тянут нижнюю плашку, экран движется синхронно с ней.
-                    .graphicsLayer {
-                        // Содержимое следует за плашкой на полный размер экрана,
-                        // поэтому переход не обрывается на фиксированных 260 px.
-                        translationX = tabDragProgress * size.width
-                    }
-            ) {
+            Box(Modifier.fillMaxSize().padding(padding)) {
                 if (composing && currentAccount != null) {
                     ComposeMail(
                         account = tokenStorage.hydrate(currentAccount),
@@ -450,22 +435,12 @@ fun MainScreen(
                             val forward = targetState > initialState
                             // Содержимое едет в направлении перетаскивания, а не
                             // мгновенно заменяется. Лёгкий масштаб создаёт глубину.
-                            (slideInHorizontally(
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
-                            ) { if (forward) it else -it } +
-                                fadeIn(initialAlpha = 0.35f) +
-                                scaleIn(initialScale = 0.96f)) togetherWith
+                            (slideInHorizontally(animationSpec = tween(260)) { if (forward) it else -it } +
+                                fadeIn(animationSpec = tween(180), initialAlpha = 0.5f)) togetherWith
                                 (slideOutHorizontally(
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioNoBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
-                                ) { if (forward) -it / 3 else it / 3 } +
-                                    fadeOut(targetAlpha = 0.15f) +
-                                    scaleOut(targetScale = 1.03f))
+                                    animationSpec = tween(260)
+                                ) { if (forward) -it / 4 else it / 4 } +
+                                    fadeOut(animationSpec = tween(150), targetAlpha = 0.15f))
                         },
                         label = "bottom-tab-content"
                     ) { tab ->
@@ -674,7 +649,36 @@ private fun MailTab(
             )
         }
         else -> {
-            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            var pullDistance by remember { mutableFloatStateOf(0f) }
+            val listState = rememberLazyListState()
+            val refreshConnection = remember(loading, onRefresh) {
+                object : NestedScrollConnection {
+                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                        val atTop = listState.firstVisibleItemIndex == 0 &&
+                            listState.firstVisibleItemScrollOffset == 0
+                        if (source == NestedScrollSource.Drag && atTop && available.y > 0f && !loading) {
+                            pullDistance += available.y
+                            if (pullDistance >= 110f) {
+                                pullDistance = 0f
+                                onRefresh()
+                            }
+                        } else if (available.y < 0f) {
+                            pullDistance = 0f
+                        }
+                        return Offset.Zero
+                    }
+                }
+            }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .nestedScroll(refreshConnection)
+            ) {
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, contentDescription = "Меню") }
@@ -757,6 +761,15 @@ private fun MailTab(
                         }
                     }
                 }
+            }
+            if (pullDistance > 24f || loading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 64.dp, vertical = 8.dp)
+                        .align(Alignment.TopCenter)
+                )
+            }
             }
         }
     }
