@@ -109,6 +109,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -428,7 +429,11 @@ fun MainScreen(
                     .fillMaxSize()
                     .padding(padding)
                     // Пока тянут нижнюю плашку, экран движется синхронно с ней.
-                    .offset { IntOffset((tabDragProgress * 260f).roundToInt(), 0) }
+                    .graphicsLayer {
+                        // Содержимое следует за плашкой на полный размер экрана,
+                        // поэтому переход не обрывается на фиксированных 260 px.
+                        translationX = tabDragProgress * size.width
+                    }
             ) {
                 if (showAccountManager) {
                     AccountsTab(

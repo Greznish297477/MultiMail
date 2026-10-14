@@ -6,6 +6,9 @@ import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.example.multiaccountmail.data.AccountRepository
@@ -13,6 +16,9 @@ import com.example.multiaccountmail.data.TokenStorage
 import com.example.multiaccountmail.mail.MailRepository
 import com.example.multiaccountmail.notification.NotificationHelper
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 /**
  * Реальная проверка непрочитанных по всем сохранённым ящикам.
@@ -33,13 +39,19 @@ class MailSyncWorker(
             val prefs = applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val fresh = mutableListOf<com.example.multiaccountmail.mail.MailMessage>()
 
-            for (account in accounts) {
-                if (!account.canFetchMail() && account.appPassword.isNullOrBlank() && account.accessToken.isNullOrBlank()
-                    && account.provider != com.example.multiaccountmail.data.Provider.GOOGLE
-                ) {
-                    continue
-                }
-                val result = MailRepository.unreadPreview(applicationContext, account)
+            // Один медленный корпоративный сервер больше не блокирует уведомления
+            // для остальных ящиков: подключения выполняются параллельно.
+            val results = coroutineScope {
+                accounts.map { account ->
+                    async {
+                        if (!account.canFetchMail() && account.appPassword.isNullOrBlank() && account.accessToken.isNullOrBlank()
+                            && account.provider != com.example.multiaccountmail.data.Provider.GOOGLE
+                        ) return@async null
+                        account to MailRepository.unreadPreview(applicationContext, account)
+                    }
+                }.awaitAll().filterNotNull()
+            }
+            results.forEach { (account, result) ->
                 val known = prefs.getStringSet(key(account.id), emptySet()).orEmpty()
                 val newcomers = result.messages.filter { it.isUnread && it.id !in known }
                 if (newcomers.isNotEmpty()) {
@@ -79,6 +91,25 @@ class MailSyncWorker(
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.UPDATE,
+                request
+            )
+        }
+
+        /** Запускает короткую проверку сразу, не дожидаясь периодического окна WorkManager. */
+        fun syncNow(context: Context) {
+            val request = OneTimeWorkRequestBuilder<MailSyncWorker>()
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build()
+                )
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "mail_sync_now",
+                // Не отменяем уже выполняющуюся проверку, если Activity несколько
+                // раз получила onResume подряд.
+                ExistingWorkPolicy.KEEP,
                 request
             )
         }

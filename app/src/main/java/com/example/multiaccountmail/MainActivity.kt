@@ -18,6 +18,7 @@ import com.example.multiaccountmail.data.TokenStorage
 import com.example.multiaccountmail.ui.screens.AddAccountScreen
 import com.example.multiaccountmail.ui.screens.MainScreen
 import com.example.multiaccountmail.ui.theme.MultiAccountMailTheme
+import com.example.multiaccountmail.sync.MailSyncWorker
 
 class MainActivity : ComponentActivity() {
 
@@ -63,6 +64,15 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Проверяем почту сразу при входе в приложение, а не только по
+        // отложенному периодическому расписанию Huawei/Android.
+        if (::repository.isInitialized && repository.snapshot().isNotEmpty()) {
+            MailSyncWorker.syncNow(applicationContext)
         }
     }
 
