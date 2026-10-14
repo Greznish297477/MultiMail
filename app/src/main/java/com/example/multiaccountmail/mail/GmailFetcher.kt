@@ -68,7 +68,11 @@ object GmailFetcher {
             } else if (folder == MailFolder.STARRED) {
                 request.q = "is:starred"
             } else {
+                // INBOX возвращает все входящие категории Gmail: основные, личные,
+                // рабочие письма и рассылки. Категория используется только для UI,
+                // но никогда не является фильтром загрузки.
                 request.labelIds = listOf(label)
+                request.includeSpamTrash = false
             }
 
             val refs = mutableListOf<com.google.api.services.gmail.model.Message>()
@@ -120,7 +124,9 @@ object GmailFetcher {
                     }
                 }.awaitAll().filterNotNull()
             }
-            FetchResult(result)
+            // Gmail иногда возвращает одинаковое сообщение в нескольких ответах
+            // при смене категорий. В списке оставляем каждое письмо один раз.
+            FetchResult(result.distinctBy { it.id }.sortedByDescending { it.timestamp })
         } catch (e: Exception) {
             Log.e(TAG, "gmail", e)
             FetchResult(error = e.message ?: "Не удалось загрузить Gmail")

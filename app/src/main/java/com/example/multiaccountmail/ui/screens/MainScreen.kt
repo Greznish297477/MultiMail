@@ -435,35 +435,17 @@ fun MainScreen(
                         translationX = tabDragProgress * size.width
                     }
             ) {
-                if (showAccountManager) {
-                    AccountsTab(
-                        accounts = accounts,
-                        currentId = currentId,
-                        tokenStorage = tokenStorage,
-                        onSelect = {
-                            repository.setCurrentAccount(it)
-                            showAccountManager = false
-                        },
-                        onBack = { showAccountManager = false },
-                        onAddAccount = onAddAccount,
-                        onRemove = {
-                            tokenStorage.clearTokens(it)
-                            repository.removeAccount(it)
-                        },
-                        onReorder = { from, to -> repository.reorderAccounts(from, to) },
-                        onSave = { id, email, name, provider, host, smtp, password ->
-                            repository.updateAccount(id, email, name, provider, host, smtp)
-                            if (!password.isNullOrBlank()) tokenStorage.saveTokens(id, null, appPassword = password)
-                        }
-                    )
-                } else if (composing && currentAccount != null) {
+                if (composing && currentAccount != null) {
                     ComposeMail(
                         account = tokenStorage.hydrate(currentAccount),
                         onDone = { composing = false }
                     )
                 } else {
                     AnimatedContent(
-                        targetState = selectedTab,
+                        // 3 — отдельный экран управления. Он находится в том же
+                        // AnimatedContent, что почта и настройки, поэтому переходы
+                        // между ними выглядят как настоящее перелистывание.
+                        targetState = if (showAccountManager) 3 else selectedTab,
                         transitionSpec = {
                             val forward = targetState > initialState
                             // Содержимое едет в направлении перетаскивания, а не
@@ -488,6 +470,26 @@ fun MainScreen(
                         label = "bottom-tab-content"
                     ) { tab ->
                         when (tab) {
+                    3 -> AccountsTab(
+                        accounts = accounts,
+                        currentId = currentId,
+                        tokenStorage = tokenStorage,
+                        onSelect = {
+                            repository.setCurrentAccount(it)
+                            showAccountManager = false
+                        },
+                        onBack = { showAccountManager = false },
+                        onAddAccount = onAddAccount,
+                        onRemove = {
+                            tokenStorage.clearTokens(it)
+                            repository.removeAccount(it)
+                        },
+                        onReorder = { from, to -> repository.reorderAccounts(from, to) },
+                        onSave = { id, email, name, provider, host, smtp, password ->
+                            repository.updateAccount(id, email, name, provider, host, smtp)
+                            if (!password.isNullOrBlank()) tokenStorage.saveTokens(id, null, appPassword = password)
+                        }
+                    )
                     0 -> MailTab(
                         accounts = if (selectedFolder == MailFolder.UNIFIED) accounts.sortedBy { it.order }
                         else listOfNotNull(currentAccount),
