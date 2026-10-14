@@ -52,17 +52,21 @@ class MailSyncWorker(
                 }.awaitAll().filterNotNull()
             }
             results.forEach { (account, result) ->
+                if (result.error != null) return@forEach
                 val known = prefs.getStringSet(key(account.id), emptySet()).orEmpty()
-                val newcomers = result.messages.filter { it.isUnread && it.id !in known }
-                if (newcomers.isNotEmpty()) {
-                    fresh += newcomers
-                    // Не удаляем старые идентификаторы: непрочитанное старое письмо
-                    // не должно снова становиться «новым» через несколько проверок.
-                    prefs.edit().putStringSet(key(account.id), known + result.messages.map { it.id }).apply()
-                } else if (result.messages.isNotEmpty() && known.isEmpty()) {
-                    // Первый успешный опрос только запоминает уже лежащие письма, без спама.
-                    prefs.edit().putStringSet(key(account.id), result.messages.map { it.id }.toSet()).apply()
+                val initialized = prefs.getBoolean("initialized_${account.id}", false)
+                val ids = result.messages.map { it.id }.toSet()
+                if (!initialized) {
+                    // Первую успешную проверку считаем базовой: старые письма не уведомляем.
+                    prefs.edit().putStringSet(key(account.id), ids)
+                        .putBoolean("initialized_${account.id}", true).apply()
+                    return@forEach
                 }
+                val newcomers = result.messages.filter { it.isUnread && it.id !in known }
+                fresh += newcomers
+                // Запоминаем и уже прочитанные: последующее изменение флага не
+                // должно ошибочно превращать старое письмо в новое уведомление.
+                if (ids.isNotEmpty()) prefs.edit().putStringSet(key(account.id), known + ids).apply()
             }
 
             if (fresh.isNotEmpty()) {

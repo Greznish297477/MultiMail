@@ -10,6 +10,7 @@ import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.gmail.Gmail
 import com.google.api.services.gmail.GmailScopes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -61,7 +62,7 @@ object GmailFetcher {
 
             val label = folder.gmailLabel ?: "INBOX"
             val request = service.users().messages().list("me")
-                .setMaxResults(500L)
+                .setMaxResults(minOf(500, maxResults.coerceAtLeast(1)).toLong())
             if (folder == MailFolder.UNREAD) {
                 request.q = "is:unread"
                 request.labelIds = listOf("INBOX")
@@ -86,9 +87,9 @@ object GmailFetcher {
             do {
                 if (page != null) request.pageToken = page
                 val list = request.execute()
-                refs += list.messages.orEmpty()
+                refs += list.messages.orEmpty().take((maxResults - refs.size).coerceAtLeast(0))
                 page = list.nextPageToken
-            } while (!page.isNullOrBlank())
+            } while (!page.isNullOrBlank() && refs.size < maxResults)
             val dateFmt = SimpleDateFormat("dd MMM HH:mm", Locale("ru"))
             val gate = Semaphore(6)
             val email = signed.email.orEmpty()
@@ -123,6 +124,7 @@ object GmailFetcher {
                                     providerLabel = "Google"
                                 )
                             } catch (e: Exception) {
+                                if (e is CancellationException) throw e
                                 Log.w(TAG, "skip gmail message", e)
                                 null
                             }
@@ -134,6 +136,7 @@ object GmailFetcher {
             // при смене категорий. В списке оставляем каждое письмо один раз.
             FetchResult(result.distinctBy { it.id }.sortedByDescending { it.timestamp })
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "gmail", e)
             FetchResult(error = e.message ?: "Не удалось загрузить Gmail")
         }

@@ -38,8 +38,9 @@ object MailSender {
                 put("mail.smtp.host", host)
                 put("mail.smtp.port", account.smtpPort.toString())
                 put("mail.smtp.auth", "true")
-                put("mail.smtp.ssl.enable", "true")
-                put("mail.smtp.ssl.trust", "*")
+                put("mail.smtp.ssl.enable", (account.smtpPort == 465).toString())
+                put("mail.smtp.starttls.enable", (account.smtpPort != 465).toString())
+                put("mail.smtp.starttls.required", (account.smtpPort != 465).toString())
                 put("mail.smtp.connectiontimeout", "20000")
                 put("mail.smtp.timeout", "20000")
             }

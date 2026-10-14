@@ -6,11 +6,13 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.Properties
+import android.text.Html
 import javax.mail.Flags
 import javax.mail.Folder
 import javax.mail.Session
 import javax.mail.Store
 import javax.mail.internet.InternetAddress
+import javax.mail.internet.MimeMultipart
 
 /** POP3S предназначен только для чтения входящих: папки и серверные действия POP3 не поддерживает. */
 object PopFetcher {
@@ -27,7 +29,6 @@ object PopFetcher {
                 put("mail.pop3s.host", host)
                 put("mail.pop3s.port", port.toString())
                 put("mail.pop3s.ssl.enable", "true")
-                put("mail.pop3s.ssl.trust", "*")
                 put("mail.pop3s.connectiontimeout", "10000")
                 put("mail.pop3s.timeout", "15000")
             }
@@ -58,7 +59,6 @@ object PopFetcher {
                     put("mail.pop3s.host", host)
                     put("mail.pop3s.port", account.imapPort.takeIf { it > 0 }?.toString() ?: "995")
                     put("mail.pop3s.ssl.enable", "true")
-                    put("mail.pop3s.ssl.trust", "*")
                     put("mail.pop3s.connectiontimeout", "20000")
                     put("mail.pop3s.timeout", "30000")
                 }
@@ -76,14 +76,15 @@ object PopFetcher {
                         val unread = !message.isSet(Flags.Flag.SEEN)
                         if (folder == MailFolder.UNREAD && !unread) return@mapNotNull null
                         val from = message.from?.firstOrNull() as? InternetAddress
+                        val body = messageBody(message)
                         MailMessage(
                             id = "pop-${account.id}-${message.messageNumber}",
                             fromName = from?.personal?.takeIf { it.isNotBlank() }
                                 ?: from?.address?.substringBefore("@") ?: "Неизвестно",
                             fromEmail = from?.address.orEmpty(),
                             subject = message.subject?.ifBlank { null } ?: "(без темы)",
-                            snippet = runCatching { message.content?.toString()?.replace(Regex("\\s+"), " ")?.take(160) }.getOrNull().orEmpty(),
-                            body = runCatching { message.content?.toString() }.getOrNull().orEmpty(),
+                            snippet = bodyPreview(body),
+                            body = body,
                             date = message.sentDate?.let(dateFormat::format).orEmpty(),
                             timestamp = message.sentDate?.time ?: message.receivedDate?.time ?: 0L,
                             isUnread = unread,
@@ -101,4 +102,24 @@ object PopFetcher {
                 runCatching { store?.close() }
             }
         }
+
+    private fun messageBody(part: javax.mail.Part): String = runCatching {
+        when {
+            part.isMimeType("text/html") || part.isMimeType("text/plain") -> part.content as? String ?: ""
+            else -> when (val content = part.content) {
+                is MimeMultipart -> {
+                    val parts = (0 until content.count).map { messageBody(content.getBodyPart(it)) }
+                    parts.firstOrNull { it.isNotBlank() && it.contains("<html", true) }
+                        ?: parts.firstOrNull { it.isNotBlank() }.orEmpty()
+                }
+                is javax.mail.Part -> messageBody(content)
+                else -> ""
+            }
+        }
+    }.getOrDefault("")
+
+    private fun bodyPreview(body: String): String {
+        val plain = if (body.contains('<')) Html.fromHtml(body, Html.FROM_HTML_MODE_LEGACY).toString() else body
+        return plain.replace(Regex("\\s+"), " ").trim().take(160)
+    }
 }

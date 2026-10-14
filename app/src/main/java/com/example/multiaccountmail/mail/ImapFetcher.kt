@@ -4,6 +4,7 @@ import android.util.Log
 import android.text.Html
 import com.example.multiaccountmail.data.Account
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -117,7 +118,7 @@ object ImapFetcher {
             var lastError: Exception? = null
             for (name in attempts) {
                 runCatching { store?.close() }
-                val next = Session.getInstance(imapProperties(host, port, oauth = false)).getStore("imaps")
+                val next = Session.getInstance(imapProperties(host, port, oauth = useOAuth)).getStore("imaps")
                 store = next
                 try {
                     next.connect(host, port, name, secret)
@@ -157,6 +158,7 @@ object ImapFetcher {
             }
             FetchResult(result)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "IMAP $host $email", e)
             val hint = if (useOAuth) {
                 "Для Яндекса нужен пароль приложения: id.yandex.ru → Безопасность → Пароли приложений, тип Почта."
@@ -216,19 +218,23 @@ object ImapFetcher {
 
     /** Берёт HTML или текст письма, сохраняя стили/фон HTML для экрана чтения. */
     private fun messageText(message: Message): String = runCatching {
-        messageParts(message).firstOrNull { it.first }?.second
-            ?: messageParts(message).firstOrNull()?.second.orEmpty()
+        val parts = messageParts(message)
+        parts.firstOrNull { it.first && it.second.isNotBlank() }?.second
+            ?: parts.firstOrNull { it.second.isNotBlank() }?.second.orEmpty()
     }.getOrDefault("")
 
     private fun messageParts(part: javax.mail.Part): List<Pair<Boolean, String>> = runCatching {
         when {
             part.isMimeType("text/html") -> listOf(true to (part.content as? String).orEmpty())
             part.isMimeType("text/plain") -> listOf(false to (part.content as? String).orEmpty())
-            part.content is MimeMultipart -> {
-                val multipart = part.content as MimeMultipart
+            else -> when (val content = part.content) {
+                is MimeMultipart -> {
+                    val multipart = content
                 (0 until multipart.count).flatMap { messageParts(multipart.getBodyPart(it)) }
+                }
+                is javax.mail.Part -> messageParts(content)
+                else -> emptyList()
             }
-            else -> emptyList()
         }
     }.getOrDefault(emptyList())
 
@@ -247,7 +253,6 @@ object ImapFetcher {
         put("mail.imaps.host", host)
         put("mail.imaps.port", port.toString())
         put("mail.imaps.ssl.enable", "true")
-        put("mail.imaps.ssl.trust", "*")
         put("mail.imaps.starttls.enable", "true")
         put("mail.imaps.auth", "true")
         put("mail.imaps.connectiontimeout", "10000")

@@ -590,24 +590,27 @@ private fun MailTab(
         }
         loadingKeys = loadingKeys + cacheKey
         errors = errors + (cacheKey to null)
-        val result = MailRepository.load(
-            context = context,
-            accounts = accounts,
-            tokenStorage = tokenStorage,
-            folder = if (folder == MailFolder.UNIFIED) MailFolder.INBOX else folder,
-            unified = unified
-        )
+        val result = try {
+            MailRepository.load(
+                context = context,
+                accounts = accounts,
+                tokenStorage = tokenStorage,
+                folder = if (folder == MailFolder.UNIFIED) MailFolder.INBOX else folder,
+                unified = unified
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            loadingKeys = loadingKeys - cacheKey
+            throw e
+        } catch (e: Exception) {
+            com.example.multiaccountmail.mail.FetchResult(error = e.localizedMessage ?: "Не удалось загрузить письма")
+        }
         // Результат сохраняется только в снимок именно этого ящика/папки.
         // Поздний ответ предыдущего запроса не затронет открытую сейчас почту.
-        if (result.messages.isNotEmpty()) {
+        if (result.error == null) {
             mailSnapshots = mailSnapshots + (cacheKey to result.messages)
-        }
-        if (result.messages.isNotEmpty()) {
             MailCache.save(context, cacheKey, result.messages)
         }
-        errors = errors + (cacheKey to result.error?.takeUnless { text ->
-            text.contains("403") || text.contains("HTTP ") || text.contains("<html", ignoreCase = true)
-        })
+        errors = errors + (cacheKey to result.error)
         loadingKeys = loadingKeys - cacheKey
     }
 

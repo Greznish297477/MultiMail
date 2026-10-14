@@ -40,7 +40,7 @@ object MailRepository {
         val sorted = all.sortedByDescending { it.timestamp }
         return FetchResult(
             messages = sorted,
-            error = if (sorted.isEmpty()) errors.joinToString("\n").ifBlank { null } else null
+            error = errors.joinToString("\n").ifBlank { null }
         )
     }
 
@@ -65,8 +65,8 @@ object MailRepository {
         val result = when {
             account.protocol == MailProtocol.POP3 -> PopFetcher.fetch(account, folder, max = 25)
             account.provider == Provider.GOOGLE && account.appPassword.isNullOrBlank() ->
-                GmailFetcher.fetch(context, account, folder)
-            else -> ImapFetcher.fetch(account, folder)
+                GmailFetcher.fetch(context, account, folder, maxResults = 50)
+            else -> ImapFetcher.fetch(account, folder, max = 50)
         }
         return result.copy(messages = result.messages.filter { it.isUnread })
     }
